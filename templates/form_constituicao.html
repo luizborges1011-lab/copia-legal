@@ -1,0 +1,1660 @@
+{% extends "base.html" %}
+{% block title %}{% if ficha_id %}Editar{% else %}Nova{% endif %} Constituição{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h4 class="mb-0 fw-bold">
+      {% if ficha_id %}Editar Constituição{% else %}Nova Constituição de Empresa{% endif %}
+    </h4>
+    <small class="text-muted" id="subtipo-label">Tipo será determinado pelo número de sócios</small>
+  </div>
+</div>
+
+<form id="formConstituicao" method="POST" action="/constituicao/salvar">
+  <input type="hidden" name="dados_json" id="dados_json">
+  <input type="hidden" name="ficha_id" value="{{ ficha_id or '' }}">
+
+  <!-- ================================================================ -->
+  <!-- SÓCIOS (primeiro) -->
+  <!-- ================================================================ -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span>
+        <i class="bi bi-people me-2"></i>Sócios
+        <span class="badge bg-primary ms-2" id="badge-tipo">LTDA</span>
+      </span>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarSocio()">
+        <i class="bi bi-person-plus"></i> Adicionar Sócio
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="socios-container"></div>
+      <div class="mt-3 p-3 bg-light rounded" id="resumo-capital" style="display:none;">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <strong>Capital Social Total:</strong>
+          <span id="resumo-total" class="fw-bold text-primary fs-5"></span>
+        </div>
+        <div id="resumo-linhas" class="small mt-1 text-muted"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- EMPRESA -->
+  <!-- ================================================================ -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-building me-2"></i>Dados da Empresa</div>
+    <div class="card-body">
+      <!-- Nota informativa: regras de nome empresarial LTDA -->
+      <div class="col-12 mb-1">
+        <button type="button" class="btn btn-link btn-sm text-muted p-0"
+                data-bs-toggle="collapse" data-bs-target="#info-nome-empresarial">
+          <i class="bi bi-info-circle me-1"></i>Regras para o Nome Empresarial LTDA
+        </button>
+        <div class="collapse mt-2" id="info-nome-empresarial">
+          <div class="card card-body bg-light small py-2" style="font-size:0.78rem; max-height:260px; overflow-y:auto;">
+            <strong>NOME EMPRESARIAL — FIRMA OU DENOMINAÇÃO</strong>
+            <p class="mb-1 mt-1">A sociedade limitada poderá fazer uso da <strong>firma</strong> (contendo nome civil do(s) sócio(s)) ou da <strong>denominação</strong> (qualquer palavra, inclusive estrangeira), devendo em qualquer caso inserir ao final a palavra <strong>"LIMITADA"</strong> ou <strong>"LTDA"</strong>.</p>
+            <p class="mb-1"><strong>Firma:</strong> deve conter o nome de pelo menos um sócio. Se não individualizar todos, acrescentar "e Companhia" ou "& Cia." + LTDA. O nome civil deve figurar completo; prenomes podem ser abreviados. FILHO, JÚNIOR, NETO, SOBRINHO etc. não podem ser abreviados. O último sobrenome não pode ser abreviado.</p>
+            <p class="mb-1"><strong>Denominação:</strong> quaisquer palavras em língua nacional ou estrangeira + LTDA.</p>
+            <p class="mb-1"><strong>SPE:</strong> pode agregar "SPE" antes de "LTDA".</p>
+            <p class="mb-1"><strong>ESC (Empresa Simples de Crédito):</strong> deve conter "Empresa Simples de Crédito" antes do tipo societário. Proibida a palavra "banco".</p>
+            <p class="mb-0"><strong>Vedado:</strong> nome idêntico/semelhante a outro já registrado; palavras atentatórias à moral; siglas de órgãos públicos sem autorização; atividade não prevista no objeto; designação de porte (ME/EPP) no nome; expressão "grupo" sem organização formal.</p>
+          </div>
+        </div>
+      </div>
+      <!-- Tipo de nome empresarial -->
+      <div class="col-12 mb-1">
+        <div class="d-flex align-items-center gap-3 small">
+          <span class="text-muted fw-semibold">Tipo de nome:</span>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="radio" name="tipo_nome_emp" id="tipo_nome_firma" value="firma">
+            <label class="form-check-label" for="tipo_nome_firma">Firma <span class="text-muted">(usa sobrenome dos sócios)</span></label>
+          </div>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="radio" name="tipo_nome_emp" id="tipo_nome_denom" value="denominacao" checked>
+            <label class="form-check-label" for="tipo_nome_denom">Denominação <span class="text-muted">(nome livre)</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required">Razão Social</label>
+          <div class="d-flex gap-2 align-items-start">
+            <input type="text" class="form-control" id="razaoSocial" placeholder="NOME DA EMPRESA LTDA" required>
+            <button type="button" class="btn btn-outline-secondary btn-sm text-nowrap" id="btn-verificar-rs"
+                    onclick="verificarRazaoSocial()" title="Verificar conformidade do nome com as regras do DREI">
+              <i class="bi bi-search me-1"></i>Verificar
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" id="btn-sugerir-rs"
+                    onclick="sugerirRazaoSocial()" title="Sugerir nomes com base nos sócios e atividades">
+              <i class="bi bi-lightbulb me-1"></i>Sugerir
+            </button>
+          </div>
+          <div id="rs-status" class="mt-1" style="display:none;"></div>
+          <div id="rs-sugestoes" class="mt-1" style="display:none;"></div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required">Classificação</label>
+          <select class="form-select" id="classificacao">
+            <option value="me">Microempresa (ME)</option>
+            <option value="epp">Empresa de Pequeno Porte (EPP)</option>
+            <option value="regime_normal">Regime Normal</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required">Regime Tributário</label>
+          <select class="form-select" id="regimeTributario">
+            <option value="simples_nacional">Simples Nacional</option>
+            <option value="lucro_presumido">Lucro Presumido</option>
+            <option value="lucro_real">Lucro Real</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Capital Social (R$)</label>
+          <input type="text" class="form-control bg-light" id="capitalSocialDisplay" readonly tabindex="-1">
+          <input type="hidden" id="capitalSocial">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Imóvel</label>
+          <select class="form-select" id="imovel">
+            <option value="alugado">Alugado</option>
+            <option value="proprio">Próprio</option>
+            <option value="comodato">Cedido/Comodato</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Metragem (m²)</label>
+          <input type="number" class="form-control" id="metragem" min="1" placeholder="20">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Telefone da Empresa</label>
+          <input type="text" class="form-control" id="telefoneEmpresa" placeholder="(46) 3000-0000"
+                 maxlength="15" oninput="mascaraTelefone(this)">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">E-mail da Empresa</label>
+          <input type="email" class="form-control" id="emailEmpresa" placeholder="contato@empresa.com.br">
+        </div>
+      </div>
+
+      <!-- Objeto Social + IA -->
+      <div class="section-title mt-3">Objeto Social</div>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label required">Texto do Objeto Social</label>
+          <textarea class="form-control" id="objetoSocial" rows="4"
+                    style="resize:vertical; min-height:100px;"
+                    placeholder="Ex: PRESTAÇÃO DE SERVIÇOS CONTÁBEIS, ELABORAÇÃO DE DECLARAÇÕES FISCAIS E ASSESSORIA EMPRESARIAL A PESSOAS FÍSICAS E JURÍDICAS."></textarea>
+        </div>
+        <div class="col-12">
+          <div class="border rounded p-3 bg-light">
+            <label class="form-label fw-bold mb-1">
+              <i class="bi bi-robot me-1 text-primary"></i> Gerar com IA
+            </label>
+            <p class="small text-muted mb-2">
+              Descreva em linguagem simples o que a empresa vai fazer. A IA gerará o objeto social formal
+              e sugerirá os CNAEs correspondentes.
+            </p>
+            <div class="d-flex gap-2">
+              <textarea class="form-control form-control-sm" id="iaDescricao" rows="2"
+                        placeholder="Ex: A empresa vai prestar serviços de contabilidade, dar assessoria fiscal e fazer declarações de imposto de renda para pessoas físicas e jurídicas..."></textarea>
+              <button type="button" class="btn btn-primary btn-sm flex-shrink-0" style="height:fit-content;"
+                      onclick="gerarObjetoSocialIA()" id="btnGerarIA">
+                <i class="bi bi-stars"></i><br>Gerar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Endereço Comercial -->
+      <div class="d-flex align-items-center mt-3 mb-1">
+        <span class="section-title mb-0 me-3">Endereço Comercial</span>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <select class="form-select form-select-sm" id="copiar-end-empresa" style="width:auto;" onchange="copiarEnderecoParaEmpresa(this)">
+            <option value="">Copiar endereço do sócio...</option>
+          </select>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label">CEP</label>
+          <input type="text" class="form-control" id="end_cep" placeholder="85601-000" maxlength="9"
+                 oninput="mascaraCEP(this)" onblur="buscarCEPEmpresa(this.value)">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" id="end_tipo">
+            <option value="Rua">Rua</option>
+            <option value="Avenida">Avenida</option>
+            <option value="Alameda">Alameda</option>
+            <option value="Travessa">Travessa</option>
+            <option value="Rodovia">Rodovia</option>
+            <option value="Praça">Praça</option>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label required">Logradouro</label>
+          <input type="text" class="form-control" id="end_desc" placeholder="João Pessoa">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label required">Número</label>
+          <input type="text" class="form-control" id="end_num" placeholder="177">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Complemento</label>
+          <input type="text" class="form-control" id="end_compl" placeholder="Sala 2">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Bairro</label>
+          <input type="text" class="form-control" id="end_bairro" placeholder="Centro">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required">Cidade</label>
+          <input type="text" class="form-control" id="end_cidade" placeholder="Francisco Beltrão">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label required">Estado</label>
+          <select class="form-select" id="end_estado">
+            <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+            <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+            <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+            <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+            <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+            <option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option>
+            <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+            <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+            <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Quadra</label>
+          <input type="text" class="form-control" id="end_quadra" placeholder="Quadra">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Lote</label>
+          <input type="text" class="form-control" id="end_lote" placeholder="Lote">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Inscrição Imobiliária</label>
+          <input type="text" class="form-control" id="end_inscricao" placeholder="Inscrição Imobiliária">
+        </div>
+      </div>
+
+      <!-- Tipo de Unidade -->
+      <div class="mt-3">
+        <label class="form-label fw-semibold small">Tipo de Unidade</label>
+        <div id="end_tu_group" class="d-flex flex-wrap gap-2">
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Unidade Produtiva" checked><label class="form-check-label small">Unidade Produtiva</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Sede" checked><label class="form-check-label small">Sede</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Depósito Fechado"><label class="form-check-label small">Depósito Fechado</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Almoxarifado"><label class="form-check-label small">Almoxarifado</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Oficina de Reparação"><label class="form-check-label small">Oficina de Reparação</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Garagem"><label class="form-check-label small">Garagem</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Unidade de Abastecimento de Combustíveis"><label class="form-check-label small">Unidade de Abastecimento de Combustíveis</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Ponto de Exposição"><label class="form-check-label small">Ponto de Exposição</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Centro de Treinamento"><label class="form-check-label small">Centro de Treinamento</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Centro de Processamento de Dados"><label class="form-check-label small">Centro de Processamento de Dados</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Posto de Coleta"><label class="form-check-label small">Posto de Coleta</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Posto de Serviço"><label class="form-check-label small">Posto de Serviço</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Escritório Administrativo"><label class="form-check-label small">Escritório Administrativo</label></div>
+        </div>
+      </div>
+
+      <!-- Forma de Atuação -->
+      <div class="mt-2 mb-1">
+        <label class="form-label fw-semibold small">Forma de Atuação</label>
+        <div id="end_fa_group" class="d-flex flex-wrap gap-2">
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Estabelecimento Fixo"><label class="form-check-label small">Estabelecimento Fixo</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Internet"><label class="form-check-label small">Internet</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Em Local Fixo Fora de Loja"><label class="form-check-label small">Em Local Fixo Fora de Loja</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Correio"><label class="form-check-label small">Correio</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Televendas"><label class="form-check-label small">Televendas</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Porta a Porta/Postos Móveis ou por Ambulantes"><label class="form-check-label small">Porta a Porta/Postos Móveis ou por Ambulantes</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Máquinas Automáticas"><label class="form-check-label small">Máquinas Automáticas</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Atividade Desenvolvida Fora do Estabelecimento"><label class="form-check-label small">Atividade Desenvolvida Fora do Estabelecimento</label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- ATIVIDADES ECONÔMICAS -->
+  <!-- ================================================================ -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span><i class="bi bi-tag me-2"></i>Atividades Econômicas (CNAE)</span>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarAtividade()">
+        <i class="bi bi-plus"></i> Adicionar
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="atividades-container"></div>
+      <div id="cnae-loading" class="text-muted small mt-1" style="display:none;">
+        <i class="bi bi-hourglass-split"></i> Carregando lista de CNAEs...
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- BOTÕES -->
+  <!-- ================================================================ -->
+  <div class="d-flex gap-2 mb-5">
+    <button type="submit" class="btn btn-primary px-4">
+      <i class="bi bi-save"></i> Salvar Ficha
+    </button>
+    <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+
+<!-- ================================================================ -->
+<!-- Template sócio -->
+<!-- ================================================================ -->
+<template id="tpl-socio">
+  <div class="socio-card" id="socio-__IDX__">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-person-circle me-1"></i>Sócio <span class="num-socio">__NUM__</span></h6>
+      <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm copiar-end-socio" style="width:auto;" onchange="copiarEnderecoEntreSocios(this, '__IDX__')">
+          <option value="">Copiar endereço de...</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerSocio('__IDX__')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Upload de documento para auto-preenchimento -->
+    <div class="d-flex align-items-center gap-2 mb-3 p-2 rounded"
+         style="background:#f0f4ff; border:1px dashed #aabde8;">
+      <i class="bi bi-file-earmark-person text-primary fs-5"></i>
+      <span class="small text-muted flex-shrink-0">Ler documento (RG/CNH):</span>
+      <input type="file" class="d-none doc-upload-input"
+             accept=".jpg,.jpeg,.png,.webp,.pdf"
+             onchange="lerDocumento(this, '__IDX__')">
+      <button type="button" class="btn btn-sm btn-outline-primary flex-shrink-0"
+              onclick="this.previousElementSibling.click()">
+        <i class="bi bi-upload me-1"></i> Selecionar arquivo
+      </button>
+      <span class="doc-status small ms-1"></span>
+    </div>
+
+    <!-- Tipo de Pessoa -->
+    <div class="row g-3 mb-2">
+      <div class="col-12">
+        <div class="btn-group btn-group-sm" role="group">
+          <input type="radio" class="btn-check" name="tipo_pessoa___IDX__" id="pf___IDX__" value="pf" checked>
+          <label class="btn btn-outline-secondary" for="pf___IDX__" onclick="setTipoPessoa('__IDX__','pf')">
+            <i class="bi bi-person"></i> Pessoa Física
+          </label>
+          <input type="radio" class="btn-check" name="tipo_pessoa___IDX__" id="pj___IDX__" value="pj">
+          <label class="btn btn-outline-secondary" for="pj___IDX__" onclick="setTipoPessoa('__IDX__','pj')">
+            <i class="bi bi-building"></i> Pessoa Jurídica
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Campos PF -->
+    <div class="campos-pf">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required">Nome Completo</label>
+          <input type="text" class="form-control" data-field="nome" placeholder="NOME COMPLETO DO SÓCIO">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">CPF</label>
+          <input type="text" class="form-control" data-field="cpf" placeholder="000.000.000-00" maxlength="14"
+                 oninput="mascaraCPF(this)">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Data de Nascimento</label>
+          <input type="date" class="form-control" data-field="dataNascimento">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Gênero</label>
+          <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" data-field-radio="genero" name="genero___IDX__" id="masc___IDX__" value="masculino" checked>
+            <label class="btn btn-outline-primary" for="masc___IDX__"><i class="bi bi-gender-male"></i> Masculino</label>
+            <input type="radio" class="btn-check" data-field-radio="genero" name="genero___IDX__" id="fem___IDX__" value="feminino">
+            <label class="btn btn-outline-danger" for="fem___IDX__"><i class="bi bi-gender-female"></i> Feminino</label>
+          </div>
+          <input type="hidden" data-field="genero" value="masculino">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Estado Civil</label>
+          <select class="form-select" data-field="estadoCivil" onchange="toggleRegimeBens(this)">
+            <option value="solteiro">Solteiro(a)</option>
+            <option value="casado">Casado(a)</option>
+            <option value="divorciado">Divorciado(a)</option>
+            <option value="viuvo">Viúvo(a)</option>
+            <option value="separado">Separado(a)</option>
+          </select>
+        </div>
+        <div class="col-md-3 regime-bens-field" style="display:none;">
+          <label class="form-label">Regime de Bens</label>
+          <select class="form-select" data-field="regimeBens">
+            <option value="comunhao_parcial">Comunhão Parcial</option>
+            <option value="comunhao_universal">Comunhão Universal</option>
+            <option value="separacao_total">Separação Total</option>
+            <option value="participacao_final">Participação Final nos Aquestos</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Profissão</label>
+          <input type="text" class="form-control" data-field="profissao" placeholder="contador">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Telefone</label>
+          <input type="text" class="form-control" data-field="telefone"
+                 placeholder="(46) 99999-9999" maxlength="15" oninput="mascaraTelefone(this)">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">E-mail</label>
+          <input type="email" class="form-control" data-field="email" placeholder="nome@email.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- Campos PJ (ocultos inicialmente) -->
+    <div class="campos-pj" style="display:none;">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required">Razão Social</label>
+          <input type="text" class="form-control" data-field="nome" placeholder="EMPRESA SÓCIA LTDA">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">CNPJ</label>
+          <input type="text" class="form-control" data-field="cpf" placeholder="00.000.000/0000-00" maxlength="18"
+                 oninput="mascaraCNPJ(this)">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Responsável Legal</label>
+          <input type="text" class="form-control" data-field="profissao" placeholder="Nome do responsável">
+        </div>
+      </div>
+    </div>
+
+    <!-- Nacionalidade (compartilhada PF/PJ) -->
+    <div class="row g-3 mt-1">
+      <div class="col-md-3">
+        <label class="form-label required">Nacionalidade</label>
+        <select class="form-select" data-field="nacionalidade">
+          <optgroup label="— Feminino —">
+            <option value="brasileira" selected>brasileira</option>
+            <option value="americana">americana</option>
+            <option value="argentina">argentina</option>
+            <option value="italiana">italiana</option>
+            <option value="espanhola">espanhola</option>
+            <option value="portuguesa">portuguesa</option>
+            <option value="alemã">alemã</option>
+            <option value="francesa">francesa</option>
+            <option value="japonesa">japonesa</option>
+            <option value="chinesa">chinesa</option>
+            <option value="uruguaia">uruguaia</option>
+            <option value="paraguaia">paraguaia</option>
+            <option value="colombiana">colombiana</option>
+            <option value="peruana">peruana</option>
+            <option value="boliviana">boliviana</option>
+            <option value="venezuelana">venezuelana</option>
+            <option value="chilena">chilena</option>
+            <option value="mexicana">mexicana</option>
+            <option value="cubana">cubana</option>
+            <option value="equatoriana">equatoriana</option>
+            <option value="dominicana">dominicana</option>
+            <option value="haitiana">haitiana</option>
+            <option value="nigeriana">nigeriana</option>
+            <option value="angolana">angolana</option>
+            <option value="costarricense">costarricense</option>
+            <option value="canadense">canadense</option>
+            <option value="australiana">australiana</option>
+            <option value="sul-africana">sul-africana</option>
+          </optgroup>
+          <optgroup label="— Masculino —">
+            <option value="brasileiro">brasileiro</option>
+            <option value="americano">americano</option>
+            <option value="argentino">argentino</option>
+            <option value="italiano">italiano</option>
+            <option value="espanhol">espanhol</option>
+            <option value="português">português</option>
+            <option value="alemão">alemão</option>
+            <option value="francês">francês</option>
+            <option value="japonês">japonês</option>
+            <option value="chinês">chinês</option>
+            <option value="uruguaio">uruguaio</option>
+            <option value="paraguaio">paraguaio</option>
+            <option value="colombiano">colombiano</option>
+            <option value="peruano">peruano</option>
+            <option value="boliviano">boliviano</option>
+            <option value="venezuelano">venezuelano</option>
+            <option value="chileno">chileno</option>
+            <option value="mexicano">mexicano</option>
+            <option value="cubano">cubano</option>
+            <option value="equatoriano">equatoriano</option>
+            <option value="dominicano">dominicano</option>
+            <option value="haitiano">haitiano</option>
+            <option value="nigeriano">nigeriano</option>
+            <option value="angolano">angolano</option>
+            <option value="canadense">canadense</option>
+            <option value="australiano">australiano</option>
+            <option value="sul-africano">sul-africano</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+
+    <!-- Endereço do sócio -->
+    <div class="section-title">Endereço Residencial</div>
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label">CEP</label>
+        <input type="text" class="form-control" data-field="end_cep" maxlength="9" placeholder="00000-000"
+               oninput="mascaraCEP(this)" onblur="buscarCEPSocio(this)">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" data-field="end_tipo">
+          <option value="Rua">Rua</option><option value="Avenida">Avenida</option>
+          <option value="Alameda">Alameda</option><option value="Travessa">Travessa</option>
+          <option value="Rodovia">Rodovia</option><option value="Praça">Praça</option>
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label required">Logradouro</label>
+        <input type="text" class="form-control" data-field="end_desc" placeholder="Nome da rua">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label required">Número</label>
+        <input type="text" class="form-control" data-field="end_num">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Compl.</label>
+        <input type="text" class="form-control" data-field="end_compl">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label required">Bairro</label>
+        <input type="text" class="form-control" data-field="end_bairro">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label required">Cidade</label>
+        <input type="text" class="form-control" data-field="end_cidade">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Estado</label>
+        <select class="form-select" data-field="end_estado">
+          <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+          <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+          <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+          <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+          <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+          <option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option>
+          <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+          <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+          <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Documento de identificação -->
+    <div class="section-title campos-pf">Documento de Identificação</div>
+    <div class="row g-3 campos-pf">
+      <div class="col-md-2">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" data-field="doc_tipo">
+          <option value="rg">RG</option>
+          <option value="cnh">CNH</option>
+          <option value="passaporte">Passaporte</option>
+          <option value="rne">RNE</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Número</label>
+        <input type="text" class="form-control" data-field="doc_numero">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Órgão Expedidor</label>
+        <input type="text" class="form-control" data-field="doc_orgao" placeholder="SSP/PR">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Data Expedição</label>
+        <input type="date" class="form-control" data-field="doc_data">
+      </div>
+    </div>
+
+    <!-- Participação societária -->
+    <div class="section-title">Participação Societária</div>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label required">Quantidade de Cotas</label>
+        <input type="number" class="form-control" data-field="quantidadeCotas" min="1" step="1"
+               oninput="atualizarResumoCapital()">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Valor Unit. Cota (R$)</label>
+        <input type="number" class="form-control" data-field="valorUnitarioCota" value="1"
+               min="0.01" step="0.01" readonly>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label required">Forma de Integralização</label>
+        <select class="form-select" data-field="integ_tipo" onchange="toggleIntegDesc(this)">
+          <option value="moeda">Dinheiro (moeda corrente)</option>
+          <option value="bens_moveis">Bens Móveis</option>
+          <option value="bens_imoveis">Bens Imóveis</option>
+          <option value="adiantamentos">Adiantamentos realizados anteriormente</option>
+          <option value="outro">Outro (especificar)</option>
+        </select>
+        <div class="mt-1">
+          <a href="#" class="small text-primary" onclick="adicionarOpcaoInteg(this.closest('.col-md-3').querySelector('select')); return false;">
+            <i class="bi bi-plus-circle me-1"></i>Adicionar opção
+          </a>
+        </div>
+      </div>
+      <div class="col-md-6 integ-desc-wrapper" style="display:none;">
+        <label class="form-label">Descrição do bem integralizado</label>
+        <textarea class="form-control" data-field="integ_desc" rows="3"
+                  placeholder="Descreva detalhadamente o bem integralizado (identificação, valor, características)..."
+                  style="resize:vertical;"></textarea>
+      </div>
+    </div>
+
+    <!-- Administração -->
+    <div class="section-title">Administração</div>
+    <div class="row g-3 align-items-center">
+      <div class="col-auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" data-field="administrador"
+                 id="adm_check___IDX__" onchange="toggleTipoAdm(this)">
+          <label class="form-check-label" for="adm_check___IDX__">Este sócio é administrador</label>
+        </div>
+      </div>
+      <div class="col-md-3 tipo-adm-field" style="display:none;">
+        <label class="form-label">Tipo de Administração</label>
+        <select class="form-select" data-field="tipoAdministracao">
+          <option value="isolada">Isolada (cada um age sozinho)</option>
+          <option value="isolada_conjunta">Isoladamente e/ou Conjuntamente</option>
+          <option value="conjunta">Conjunta (todos devem assinar)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Capacidade Civil / Representante Legal -->
+    <div class="section-title mt-3">Capacidade Civil</div>
+    <div class="row g-3 mb-2">
+      <div class="col-auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" data-field="menorOuIncapaz"
+                 id="menor___IDX__" onchange="toggleRepresentante(this)">
+          <label class="form-check-label" for="menor___IDX__">Menor de idade ou legalmente incapaz</label>
+        </div>
+      </div>
+    </div>
+    <div class="representante-container" style="display:none;">
+      <div class="alert alert-warning small py-2 mb-2">
+        <i class="bi bi-person-check me-1"></i>Dados do <strong>representante legal</strong> (pai, mãe, tutor ou curador):
+      </div>
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Tipo de Representação</label>
+          <select class="form-select" data-field="rep_tipo">
+            <option value="pai">Pai</option><option value="mae">Mãe</option>
+            <option value="tutor">Tutor(a)</option><option value="curador">Curador(a)</option>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Nome do Representante</label>
+          <input type="text" class="form-control" data-field="rep_nome" placeholder="NOME COMPLETO DO REPRESENTANTE">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">CPF do Representante</label>
+          <input type="text" class="form-control" data-field="rep_cpf" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCPF(this)">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Nascimento</label>
+          <input type="date" class="form-control" data-field="rep_dataNascimento">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Gênero</label>
+          <select class="form-select" data-field="rep_genero">
+            <option value="masculino">Masculino</option><option value="feminino">Feminino</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Nacionalidade</label>
+          <input type="text" class="form-control" data-field="rep_nacionalidade" value="brasileira">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Estado Civil</label>
+          <select class="form-select" data-field="rep_estadoCivil">
+            <option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option>
+            <option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Profissão</label>
+          <input type="text" class="form-control" data-field="rep_profissao" placeholder="profissão">
+        </div>
+      </div>
+      <div class="section-title small mt-2">Endereço do Representante</div>
+      <div class="row g-2">
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_end_cep" placeholder="CEP" maxlength="9" oninput="mascaraCEP(this)"></div>
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_end_tipo"><option value="Rua">Rua</option><option value="Avenida">Av.</option><option value="Alameda">Al.</option><option value="Travessa">Trav.</option><option value="Rodovia">Rod.</option></select></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="rep_end_desc" placeholder="Logradouro"></div>
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_end_num" placeholder="Nº"></div>
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_end_compl" placeholder="Compl."></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_end_bairro" placeholder="Bairro"></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="rep_end_cidade" placeholder="Cidade"></div>
+        <div class="col-md-2">
+          <select class="form-select form-select-sm" data-field="rep_end_estado">
+            <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+          </select>
+        </div>
+      </div>
+      <div class="section-title small mt-2">Documento do Representante</div>
+      <div class="row g-2">
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_doc_tipo"><option value="rg">RG</option><option value="cnh">CNH</option><option value="passaporte">Passaporte</option></select></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_doc_numero" placeholder="Número"></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_doc_orgao" placeholder="Órgão expedidor"></div>
+        <div class="col-md-2"><input type="date" class="form-control form-control-sm" data-field="rep_doc_data"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Template atividade -->
+<template id="tpl-atividade">
+  <div class="atividade-card" id="ativ-__IDX__">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold small text-muted">Atividade <span class="num-ativ">__NUM__</span></span>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="principal" id="princ_ativ-__IDX__">
+          <label class="form-check-label small" for="princ_ativ-__IDX__">Principal</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="desenvolvidaNoLocal" id="local_ativ-__IDX__" checked>
+          <label class="form-check-label small" for="local_ativ-__IDX__">Exercida no local</label>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerAtividade('__IDX__')">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-3 position-relative">
+        <input type="text" class="form-control form-control-sm cnae-search"
+               data-field="cnae" placeholder="Código CNAE..."
+               autocomplete="off"
+               oninput="filtrarCNAE(this)">
+        <div class="cnae-dropdown list-group position-absolute shadow-sm"
+             style="display:none; z-index:1000; max-height:240px; overflow-y:auto; top:100%; left:0; min-width:480px;"></div>
+      </div>
+      <div class="col-md-9">
+        <input type="text" class="form-control form-control-sm" data-field="descricao"
+               placeholder="Descrição da atividade (preenchida automaticamente ao selecionar CNAE)">
+      </div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================================
+// Estado
+// ============================================================
+let socioIdx = 0;
+let ativIdx  = 0;
+let cnaeList = [];  // Carregado do IBGE
+
+const dadosIniciais = {{ (ficha.empresa | tojson) if ficha else 'null' }};
+
+// ============================================================
+// Inicialização
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  carregarCNAEs();
+  if (dadosIniciais) {
+    carregarDados(dadosIniciais);
+  } else {
+    adicionarSocio();
+    adicionarAtividade();
+  }
+  atualizarTipoSociedade();
+});
+
+// ============================================================
+// CNAE — carrega lista IBGE
+// ============================================================
+function carregarCNAEs() {
+  document.getElementById('cnae-loading').style.display = '';
+  fetch('https://servicodados.ibge.gov.br/api/v2/cnae/subclasses')
+    .then(r => r.json())
+    .then(data => {
+      cnaeList = data.map(c => ({ id: c.id, descricao: c.descricao }));
+      document.getElementById('cnae-loading').style.display = 'none';
+    })
+    .catch(() => {
+      document.getElementById('cnae-loading').textContent = 'Não foi possível carregar CNAEs. Digite manualmente.';
+    });
+}
+
+function filtrarCNAE(input) {
+  const card   = input.closest('.atividade-card');
+  const dropdown = card.querySelector('.cnae-dropdown');
+  const q = input.value.trim().toLowerCase();
+
+  if (!q || q.length < 2 || cnaeList.length === 0) {
+    dropdown.style.display = 'none';
+    return;
+  }
+
+  const resultados = cnaeList
+    .filter(c => c.id.toLowerCase().includes(q) || c.descricao.toLowerCase().includes(q))
+    .slice(0, 30);
+
+  if (resultados.length === 0) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = '';
+  resultados.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'list-group-item list-group-item-action py-1 px-2 small';
+    btn.dataset.cnaeId   = c.id;
+    btn.dataset.cnaeDesc = c.descricao;
+    btn.innerHTML = `<span class="text-muted me-1 fw-semibold">${c.id}</span>${c.descricao}`;
+    btn.addEventListener('click', () => selecionarCNAE(dropdown.closest('.atividade-card'), c.id, c.descricao));
+    dropdown.appendChild(btn);
+  });
+  dropdown.style.display = '';
+}
+
+function selecionarCNAE(card, id, descricao) {
+  setField(card, 'cnae', id);
+  setField(card, 'descricao', descricao);
+  card.querySelector('.cnae-search').value = id;
+  card.querySelector('.cnae-dropdown').style.display = 'none';
+}
+
+// ============================================================
+// IA — Leitura de documento pessoal (RG / CNH / CPF)
+// ============================================================
+function lerDocumento(input, socioId) {
+  const card   = document.getElementById(socioId);
+  const status = card.querySelector('.doc-status');
+  const file   = input.files[0];
+  if (!file) return;
+
+  status.textContent = 'Lendo documento…';
+  status.className   = 'doc-status small text-primary';
+
+  const fd = new FormData();
+  fd.append('arquivo', file);
+
+  fetch('/api/extrair-documento-socio', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if (d.erro) {
+        status.textContent = 'Erro: ' + d.erro;
+        status.className   = 'doc-status small text-danger';
+        return;
+      }
+      const ok = [];
+      if (d.nome)               { setField(card, 'nome',           d.nome);               ok.push('Nome'); }
+      if (d.cpf)                { setField(card, 'cpf',            d.cpf);                ok.push('CPF'); }
+      if (d.dataNascimento)     { setField(card, 'dataNascimento',  d.dataNascimento);     ok.push('Nascimento'); }
+      if (d.doc_tipo)             setField(card, 'doc_tipo',        d.doc_tipo);
+      if (d.doc_numero)         { setField(card, 'doc_numero',      d.doc_numero);         ok.push('Nº doc'); }
+      if (d.doc_orgaoExpedidor)   setField(card, 'doc_orgao',       d.doc_orgaoExpedidor);
+      if (d.doc_dataExpedicao)    setField(card, 'doc_data',        d.doc_dataExpedicao);
+
+      status.textContent = ok.length
+        ? '✓ Preenchido: ' + ok.join(', ')
+        : 'Nenhum dado identificado.';
+      status.className = ok.length ? 'doc-status small text-success fw-semibold'
+                                   : 'doc-status small text-warning';
+      input.value = '';
+      atualizarSelectsCopiarEnd();
+    })
+    .catch(() => {
+      status.textContent = 'Erro de comunicação.';
+      status.className   = 'doc-status small text-danger';
+    });
+}
+
+// ============================================================
+// IA — Objeto Social + CNAE
+// ============================================================
+function gerarObjetoSocialIA() {
+  const descricao = document.getElementById('iaDescricao').value.trim();
+  if (!descricao) { alert('Descreva as atividades da empresa antes de gerar.'); return; }
+
+  const btn = document.getElementById('btnGerarIA');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i><br>Gerando...';
+
+  fetch('/api/sugerir-objeto-cnae', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ descricao })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.erro) { alert('Erro: ' + d.erro); return; }
+
+    // Preenche objeto social
+    if (d.objetoSocial) {
+      document.getElementById('objetoSocial').value = d.objetoSocial;
+    }
+
+    // Adiciona CNAEs sugeridos
+    if (d.cnaes && d.cnaes.length > 0) {
+      // Remove atividades vazias existentes
+      document.querySelectorAll('#atividades-container .atividade-card').forEach(el => {
+        const cnae = el.querySelector('[data-field="cnae"]')?.value.trim();
+        const desc = el.querySelector('[data-field="descricao"]')?.value.trim();
+        if (!cnae && !desc) el.remove();
+      });
+
+      d.cnaes.forEach(c => {
+        adicionarAtividade({
+          cnae: c.cnae || '',
+          descricao: c.descricao || '',
+          principal: !!c.principal,
+          desenvolvidaNoLocal: true
+        });
+      });
+      renumerarAtividades();
+    }
+  })
+  .catch(e => alert('Erro de comunicação: ' + e))
+  .finally(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-stars"></i><br>Gerar';
+  });
+}
+
+// Fecha dropdown CNAE ao clicar fora
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.atividade-card')) {
+    document.querySelectorAll('.cnae-dropdown').forEach(d => d.style.display = 'none');
+  }
+});
+
+// ============================================================
+// CEP auto-fill — ViaCEP
+// ============================================================
+function mascaraCEP(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5,8);
+  input.value = v;
+}
+
+function buscarCEP(cep, onResult) {
+  cep = cep.replace(/\D/g, '');
+  if (cep.length !== 8) return;
+  fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    .then(r => r.json())
+    .then(d => { if (!d.erro) onResult(d); })
+    .catch(() => {});
+}
+
+function buscarCEPEmpresa(cep) {
+  buscarCEP(cep, d => {
+    if (d.logradouro) {
+      const partes = d.logradouro.split(' ');
+      const tipos = ['Rua','Avenida','Alameda','Travessa','Rodovia','Praça'];
+      let tipo = 'Rua', desc = d.logradouro;
+      for (const t of tipos) {
+        if (d.logradouro.toUpperCase().startsWith(t.toUpperCase())) {
+          tipo = t; desc = d.logradouro.slice(t.length).trim(); break;
+        }
+      }
+      setById('end_tipo', tipo);
+      setById('end_desc', desc);
+    }
+    if (d.bairro)     setById('end_bairro', d.bairro);
+    if (d.localidade) setById('end_cidade', d.localidade);
+    if (d.uf)         setById('end_estado', d.uf);
+  });
+}
+
+function buscarCEPSocio(input) {
+  const card = input.closest('.socio-card');
+  buscarCEP(input.value, d => {
+    if (d.logradouro) {
+      const tipos = ['Rua','Avenida','Alameda','Travessa','Rodovia','Praça'];
+      let tipo = 'Rua', desc = d.logradouro;
+      for (const t of tipos) {
+        if (d.logradouro.toUpperCase().startsWith(t.toUpperCase())) {
+          tipo = t; desc = d.logradouro.slice(t.length).trim(); break;
+        }
+      }
+      setField(card, 'end_tipo', tipo);
+      setField(card, 'end_desc', desc);
+    }
+    if (d.bairro)     setField(card, 'end_bairro', d.bairro);
+    if (d.localidade) setField(card, 'end_cidade', d.localidade);
+    if (d.uf)         setField(card, 'end_estado', d.uf);
+  });
+}
+
+// ============================================================
+// Máscaras CPF / CNPJ
+// ============================================================
+function mascaraTelefone(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 10) {
+    v = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7);
+  } else if (v.length > 6) {
+    v = '(' + v.slice(0,2) + ') ' + v.slice(2,6) + '-' + v.slice(6);
+  } else if (v.length > 2) {
+    v = '(' + v.slice(0,2) + ') ' + v.slice(2);
+  } else if (v.length > 0) {
+    v = '(' + v;
+  }
+  input.value = v;
+}
+
+// ============================================================
+// Verificação / Sugestão de Razão Social via IA
+// ============================================================
+function _coletarSociosRS() {
+  const socios = [];
+  document.querySelectorAll('#socios-container .socio-card').forEach(card => {
+    const n = card.querySelector('[data-field="nome"]')?.value?.trim();
+    if (n) socios.push({ nome: n });
+  });
+  return socios;
+}
+function _coletarAtivsRS() {
+  const ativs = [];
+  document.querySelectorAll('#atividades-container .atividade-card').forEach(card => {
+    const d = card.querySelector('[data-field="descricao"]')?.value?.trim();
+    if (d) ativs.push({ descricao: d });
+  });
+  return ativs;
+}
+async function verificarRazaoSocial() {
+  const nome = document.getElementById('razaoSocial')?.value?.trim() ||
+               document.getElementById('nova_razao_social')?.value?.trim();
+  if (!nome) { alert('Preencha a razão social antes de verificar.'); return; }
+  const btn = document.getElementById('btn-verificar-rs');
+  const statusEl = document.getElementById('rs-status');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  statusEl.style.display = '';
+  statusEl.innerHTML = '<span class="text-muted small">Verificando...</span>';
+  try {
+    const resp = await fetch('/api/verificar-razao-social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, socios: _coletarSociosRS(), atividades: _coletarAtivsRS(), modo: 'verificar', tipo_nome: document.querySelector('input[name="tipo_nome_emp"]:checked')?.value || 'denominacao' })
+    });
+    const data = await resp.json();
+    if (data.erro) throw new Error(data.erro);
+    const icon = data.ok ? '✅' : '❌';
+    const cls  = data.ok ? 'text-success' : 'text-danger';
+    let html = `<span class="${cls} small fw-semibold">${icon} ${data.mensagem}</span>`;
+    if (!data.ok && data.sugestoes?.length) {
+      html += `<div class="small text-muted mt-1">Sugestões: ` +
+        data.sugestoes.map(s => `<a href="#" onclick="aplicarSugestaoRS('${s.replace(/'/g,"\\'")}');return false;" class="me-2">${s}</a>`).join('') +
+        `</div>`;
+    }
+    statusEl.innerHTML = html;
+  } catch(e) {
+    statusEl.innerHTML = `<span class="text-danger small">Erro: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-search me-1"></i>Verificar';
+  }
+}
+async function sugerirRazaoSocial() {
+  const btn = document.getElementById('btn-sugerir-rs');
+  const sugEl = document.getElementById('rs-sugestoes');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  sugEl.style.display = '';
+  sugEl.innerHTML = '<span class="text-muted small">Gerando sugestões...</span>';
+  try {
+    const resp = await fetch('/api/verificar-razao-social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ socios: _coletarSociosRS(), atividades: _coletarAtivsRS(), modo: 'sugerir', tipo_nome: document.querySelector('input[name="tipo_nome_emp"]:checked')?.value || 'denominacao' })
+    });
+    const data = await resp.json();
+    if (data.erro) throw new Error(data.erro);
+    if (data.sugestoes?.length) {
+      sugEl.innerHTML = '<div class="small fw-semibold text-primary mb-1"><i class="bi bi-lightbulb me-1"></i>Sugestões de nome:</div>' +
+        data.sugestoes.map(s =>
+          `<a href="#" onclick="aplicarSugestaoRS('${s.replace(/'/g,"\\'")}');return false;" class="badge bg-light text-dark border me-1 mb-1 text-decoration-none">${s}</a>`
+        ).join('');
+    } else {
+      sugEl.innerHTML = '<span class="text-muted small">Nenhuma sugestão retornada.</span>';
+    }
+  } catch(e) {
+    sugEl.innerHTML = `<span class="text-danger small">Erro: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-lightbulb me-1"></i>Sugerir';
+  }
+}
+function aplicarSugestaoRS(nome) {
+  const campo = document.getElementById('razaoSocial') ||
+                document.getElementById('nova_razao_social');
+  if (campo) { campo.value = nome; campo.focus(); }
+}
+
+function mascaraCPF(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9)      v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+  else if (v.length > 6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+  else if (v.length > 3) v = v.slice(0,3)+'.'+v.slice(3);
+  input.value = v;
+}
+
+function mascaraCNPJ(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 14);
+  if (v.length > 12)      v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8,12)+'-'+v.slice(12);
+  else if (v.length > 8)  v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5,8)+'/'+v.slice(8);
+  else if (v.length > 5)  v = v.slice(0,2)+'.'+v.slice(2,5)+'.'+v.slice(5);
+  else if (v.length > 2)  v = v.slice(0,2)+'.'+v.slice(2);
+  input.value = v;
+}
+
+// ============================================================
+// Tipo de pessoa PF/PJ
+// ============================================================
+function setTipoPessoa(socioId, tipo) {
+  const card = document.getElementById(socioId);
+  if (!card) return;
+  const pf = card.querySelectorAll('.campos-pf');
+  const pj = card.querySelectorAll('.campos-pj');
+  pf.forEach(el => el.style.display = tipo === 'pf' ? '' : 'none');
+  pj.forEach(el => el.style.display = tipo === 'pj' ? '' : 'none');
+  // Atualiza hidden genero para PJ (neutro)
+  const hiddenGenero = card.querySelector('input[data-field="genero"]');
+  if (hiddenGenero && tipo === 'pj') hiddenGenero.value = 'masculino';
+  card.dataset.tipoPessoa = tipo;
+  // Atualiza máscara CPF/CNPJ
+  const cpfInput = card.querySelector('[data-field="cpf"]');
+  if (cpfInput) {
+    if (tipo === 'pj') {
+      cpfInput.setAttribute('maxlength', '18');
+      cpfInput.placeholder = '00.000.000/0000-00';
+    } else {
+      cpfInput.setAttribute('maxlength', '14');
+      cpfInput.placeholder = '000.000.000-00';
+    }
+  }
+}
+
+// ============================================================
+// Copiar endereço
+// ============================================================
+function atualizarSelectsCopiarEnd() {
+  const cards  = document.querySelectorAll('#socios-container .socio-card');
+  const nomes  = [];
+  cards.forEach((c, i) => {
+    const nome = getFieldVal(c, 'nome') || `Sócio ${i+1}`;
+    nomes.push({ id: c.id, nome, idx: i });
+  });
+
+  // Atualiza cada select de "copiar endereço de..."
+  cards.forEach(card => {
+    const sel = card.querySelector('.copiar-end-socio');
+    if (!sel) return;
+    const val = sel.value;
+    sel.innerHTML = '<option value="">Copiar endereço de...</option>' +
+      nomes.filter(n => n.id !== card.id)
+           .map(n => `<option value="${n.id}">${n.nome}</option>`).join('');
+    if (val) sel.value = val;
+  });
+
+  // Atualiza select da empresa
+  const selEmp = document.getElementById('copiar-end-empresa');
+  if (selEmp) {
+    const val = selEmp.value;
+    selEmp.innerHTML = '<option value="">Copiar endereço do sócio...</option>' +
+      nomes.map(n => `<option value="${n.id}">${n.nome}</option>`).join('');
+    if (val) selEmp.value = val;
+  }
+}
+
+function copiarEnderecoEntreSocios(sel, destId) {
+  const srcId = sel.value;
+  if (!srcId) return;
+  const src  = document.getElementById(srcId);
+  const dest = document.getElementById(destId);
+  if (!src || !dest) return;
+  const campos = ['end_tipo','end_desc','end_num','end_compl','end_bairro','end_cidade','end_estado','end_cep'];
+  campos.forEach(f => setField(dest, f, getFieldVal(src, f)));
+  sel.value = '';
+}
+
+function copiarEnderecoParaEmpresa(sel) {
+  const srcId = sel.value;
+  if (!srcId) return;
+  const src = document.getElementById(srcId);
+  if (!src) return;
+  setById('end_tipo',   getFieldVal(src, 'end_tipo'));
+  setById('end_desc',   getFieldVal(src, 'end_desc'));
+  setById('end_num',    getFieldVal(src, 'end_num'));
+  setById('end_compl',  getFieldVal(src, 'end_compl'));
+  setById('end_bairro', getFieldVal(src, 'end_bairro'));
+  setById('end_cidade', getFieldVal(src, 'end_cidade'));
+  setById('end_estado', getFieldVal(src, 'end_estado'));
+  setById('end_cep',    getFieldVal(src, 'end_cep'));
+  sel.value = '';
+}
+
+// ============================================================
+// Sócios
+// ============================================================
+function adicionarSocio(dados) {
+  const num = socioIdx++;
+  const idx = 'socio-' + num;
+  const tpl = document.getElementById('tpl-socio').content.cloneNode(true);
+  const div = tpl.firstElementChild;
+
+  // Replace placeholders first, then set the outer id
+  div.innerHTML = div.innerHTML.replaceAll('__IDX__', idx).replaceAll('__NUM__', num + 1);
+  div.id = idx;
+
+  document.getElementById('socios-container').appendChild(div);
+
+  // Sync gênero radio → hidden
+  const card = document.getElementById(idx);
+  card.querySelectorAll('[data-field-radio="genero"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+      const h = card.querySelector('input[data-field="genero"]');
+      if (h) h.value = this.value;
+    });
+  });
+
+  if (dados) preencherSocio(idx, dados);
+
+  atualizarTipoSociedade();
+  atualizarSelectsCopiarEnd();
+  return idx;
+}
+
+function preencherSocio(idx, dados) {
+  const cont = document.getElementById(idx);
+  if (!cont) return;
+
+  // Tipo de pessoa
+  const tipoPessoa = dados.tipoPessoa || 'pf';
+  if (tipoPessoa === 'pj') {
+    const radioEl = cont.querySelector('input[value="pj"]');
+    if (radioEl) radioEl.checked = true;
+    setTipoPessoa(idx, 'pj');
+  }
+
+  setField(cont, 'nome',            dados.nome || '');
+  setField(cont, 'cpf',             dados.cpf || '');
+  setField(cont, 'dataNascimento',  dados.dataNascimento || '');
+  setField(cont, 'profissao',       dados.profissao || '');
+  setField(cont, 'telefone',        dados.telefone || '');
+  setField(cont, 'email',           dados.email || '');
+  setField(cont, 'nacionalidade',   dados.nacionalidade || 'brasileira');
+  setField(cont, 'estadoCivil',     dados.estadoCivil || 'solteiro');
+  setField(cont, 'regimeBens',      dados.regimeBens || '');
+  setField(cont, 'quantidadeCotas', dados.quantidadeCotas || '');
+  setField(cont, 'valorUnitarioCota', dados.valorUnitarioCota || 1);
+
+  // Gênero via radio + hidden
+  const genero = dados.genero || 'masculino';
+  const hiddenG = cont.querySelector('input[data-field="genero"]');
+  if (hiddenG) hiddenG.value = genero;
+  const radioG = cont.querySelector(`input[data-field-radio="genero"][value="${genero}"]`);
+  if (radioG) radioG.checked = true;
+
+  const end = dados.endereco || {};
+  setField(cont, 'end_tipo',   end.logradouroTipo || 'Rua');
+  setField(cont, 'end_desc',   end.logradouroDescricao || '');
+  setField(cont, 'end_num',    end.numero || '');
+  setField(cont, 'end_compl',  end.complemento || '');
+  setField(cont, 'end_bairro', end.bairro || '');
+  setField(cont, 'end_cidade', end.cidade || '');
+  setField(cont, 'end_estado', end.estado || 'PR');
+  setField(cont, 'end_cep',    end.cep || '');
+
+  const doc = dados.documentoIdentificacao || {};
+  setField(cont, 'doc_tipo',   doc.tipo || 'rg');
+  setField(cont, 'doc_numero', doc.numero || '');
+  setField(cont, 'doc_orgao',  doc.orgaoExpedidor || '');
+  setField(cont, 'doc_data',   doc.dataExpedicao || '');
+
+  const integ = (dados.integralizacoes || [])[0] || {};
+  setField(cont, 'integ_tipo', integ.tipo || 'moeda');
+  setField(cont, 'integ_desc', integ.descricao || '');
+  const integSelect = cont.querySelector('[data-field="integ_tipo"]');
+  if (integSelect) toggleIntegDesc(integSelect);
+
+  const admCheck = cont.querySelector('[data-field="administrador"]');
+  if (admCheck) { admCheck.checked = !!dados.administrador; toggleTipoAdm(admCheck); }
+  setField(cont, 'tipoAdministracao', dados.tipoAdministracao || 'isolada');
+
+  const ecSelect = cont.querySelector('[data-field="estadoCivil"]');
+  if (ecSelect) toggleRegimeBens(ecSelect);
+
+  atualizarResumoCapital();
+}
+
+function removerSocio(idx) {
+  const el = document.getElementById(idx);
+  if (el) el.remove();
+  atualizarTipoSociedade();
+  atualizarResumoCapital();
+  renumerarSocios();
+  atualizarSelectsCopiarEnd();
+}
+
+function renumerarSocios() {
+  document.querySelectorAll('#socios-container .socio-card').forEach((el, i) => {
+    const span = el.querySelector('.num-socio');
+    if (span) span.textContent = i + 1;
+  });
+}
+
+function toggleRegimeBens(select) {
+  const cont  = select.closest('.socio-card');
+  const campo = cont ? cont.querySelector('.regime-bens-field') : null;
+  if (campo) campo.style.display = select.value === 'casado' ? '' : 'none';
+}
+
+function toggleTipoAdm(checkbox) {
+  const cont  = checkbox.closest('.socio-card');
+  const campo = cont ? cont.querySelector('.tipo-adm-field') : null;
+  if (campo) campo.style.display = checkbox.checked ? '' : 'none';
+}
+
+function toggleRepresentante(checkbox) {
+  const card = checkbox.closest('.socio-card');
+  if (!card) return;
+  const rep = card.querySelector('.representante-container');
+  if (rep) rep.style.display = checkbox.checked ? '' : 'none';
+}
+
+function toggleIntegDesc(select) {
+  const cont    = select.closest('.socio-card');
+  const wrapper = cont ? cont.querySelector('.integ-desc-wrapper') : null;
+  if (!wrapper) return;
+  const mostra = ['bens_moveis', 'bens_imoveis', 'outro'].includes(select.value) ||
+                 !['moeda', 'adiantamentos'].includes(select.value); // cobre opções customizadas
+  wrapper.style.display = mostra ? '' : 'none';
+  if (!mostra) cont.querySelector('[data-field="integ_desc"]').value = '';
+}
+
+function adicionarOpcaoInteg(select) {
+  const label = prompt('Nome da nova opção de integralização:');
+  if (!label || !label.trim()) return;
+  const val = 'custom_' + label.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  const opt  = new Option(label.trim(), val);
+  // Insere antes da última opção "Outro"
+  const outroIdx = Array.from(select.options).findIndex(o => o.value === 'outro');
+  select.add(opt, outroIdx >= 0 ? outroIdx : undefined);
+  select.value = val;
+  toggleIntegDesc(select);
+}
+
+// ============================================================
+// Atividades
+// ============================================================
+function adicionarAtividade(dados) {
+  const num = ativIdx++;
+  const idx = 'ativ-' + num;
+  const tpl = document.getElementById('tpl-atividade').content.cloneNode(true);
+  const div = tpl.firstElementChild;
+
+  div.innerHTML = div.innerHTML.replaceAll('__IDX__', idx).replaceAll('__NUM__', num + 1);
+  div.id = idx;
+
+  document.getElementById('atividades-container').appendChild(div);
+
+  if (dados) {
+    setField(div, 'cnae',      dados.cnae || '');
+    setField(div, 'descricao', dados.descricao || '');
+    const princ = div.querySelector('[data-field="principal"]');
+    const local = div.querySelector('[data-field="desenvolvidaNoLocal"]');
+    if (princ) princ.checked = !!dados.principal;
+    if (local) local.checked = dados.desenvolvidaNoLocal !== false;
+  } else if (num === 0) {
+    const ativEl = document.getElementById(idx);
+    const princ = ativEl ? ativEl.querySelector('[data-field="principal"]') : null;
+    if (princ) princ.checked = true;
+  }
+}
+
+function removerAtividade(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+  renumerarAtividades();
+}
+
+function renumerarAtividades() {
+  document.querySelectorAll('#atividades-container .atividade-card').forEach((el, i) => {
+    const span = el.querySelector('.num-ativ');
+    if (span) span.textContent = i + 1;
+  });
+}
+
+// ============================================================
+// Tipo de sociedade
+// ============================================================
+function atualizarTipoSociedade() {
+  const qtd   = document.querySelectorAll('#socios-container .socio-card').length;
+  const badge = document.getElementById('badge-tipo');
+  const label = document.getElementById('subtipo-label');
+  if (qtd <= 1) {
+    badge.textContent = 'LTDA Unipessoal';
+    badge.className   = 'badge ms-2 bg-success';
+    label.textContent = '1 sócio → Sociedade Limitada Unipessoal';
+  } else {
+    badge.textContent = 'LTDA';
+    badge.className   = 'badge ms-2 bg-primary';
+    label.textContent = qtd + ' sócios → Sociedade Limitada';
+  }
+}
+
+// ============================================================
+// Resumo / capital (auto-calculado)
+// ============================================================
+function atualizarResumoCapital() {
+  const cards = document.querySelectorAll('#socios-container .socio-card');
+  let totalCotas = 0, totalVal = 0;
+  const linhas = [];
+
+  cards.forEach(cont => {
+    const nome  = getFieldVal(cont, 'nome') || '(sem nome)';
+    const cotas = parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0;
+    const vUnit = parseFloat(getFieldVal(cont, 'valorUnitarioCota')) || 1;
+    totalCotas += cotas;
+    totalVal   += cotas * vUnit;
+    linhas.push({ nome, cotas, valor: cotas * vUnit });
+  });
+
+  const resumoDiv    = document.getElementById('resumo-capital');
+  const resumoLinhas = document.getElementById('resumo-linhas');
+  const resumoTotal  = document.getElementById('resumo-total');
+
+  if (totalCotas === 0) { resumoDiv.style.display = 'none'; return; }
+  resumoDiv.style.display = '';
+
+  resumoLinhas.innerHTML = linhas.map(l => {
+    const pct = totalCotas > 0 ? (l.cotas / totalCotas * 100).toFixed(2) : '0.00';
+    return `<div>${l.nome}: ${l.cotas.toLocaleString('pt-BR')} cotas (${pct}%) = R$ ${l.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>`;
+  }).join('');
+
+  resumoTotal.textContent = `R$ ${totalVal.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
+
+  // Atualiza hidden + display
+  document.getElementById('capitalSocial').value       = totalVal.toFixed(2);
+  document.getElementById('capitalSocialDisplay').value = totalVal.toLocaleString('pt-BR', {minimumFractionDigits:2});
+
+  atualizarSelectsCopiarEnd();
+}
+
+// ============================================================
+// Carregar dados para edição
+// ============================================================
+function carregarDados(empresa) {
+  setById('razaoSocial',      empresa.razaoSocial || '');
+  setById('classificacao',    empresa.classificacao || 'me');
+  setById('regimeTributario', empresa.regimeTributario || 'simples_nacional');
+  setById('objetoSocial',     empresa.objetoSocial || '');
+  setById('imovel',           empresa.imovel || 'alugado');
+  setById('metragem',         empresa.metragem || '');
+  setById('telefoneEmpresa',  empresa.telefone || '');
+  setById('emailEmpresa',     empresa.email || '');
+
+  const end = empresa.enderecoComercial || {};
+  setById('end_tipo',      end.logradouroTipo || 'Rua');
+  setById('end_desc',      end.logradouroDescricao || '');
+  setById('end_num',       end.numero || '');
+  setById('end_compl',     end.complemento || '');
+  setById('end_quadra',    end.quadra || '');
+  setById('end_lote',      end.lote || '');
+  setById('end_inscricao', end.inscricaoImobiliaria || '');
+  setById('end_bairro',    end.bairro || '');
+  setById('end_cidade',    end.cidade || '');
+  setById('end_estado',    end.estado || 'PR');
+  setById('end_cep',       end.cep || '');
+  restaurarCheckboxGrupo('end_tu_group', end.tipoUnidade || ['Unidade Produtiva', 'Sede']);
+  restaurarCheckboxGrupo('end_fa_group', end.formaAtuacao || []);
+
+  (empresa.socios || []).forEach(s => adicionarSocio(s));
+  if (!empresa.socios || empresa.socios.length === 0) adicionarSocio();
+
+  (empresa.atividades || []).forEach(a => adicionarAtividade(a));
+  if (!empresa.atividades || empresa.atividades.length === 0) adicionarAtividade();
+
+  atualizarTipoSociedade();
+  atualizarResumoCapital();
+}
+
+// ============================================================
+// Submit — serializa em JSON
+// ============================================================
+document.getElementById('formConstituicao').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  const socios = [];
+  document.querySelectorAll('#socios-container .socio-card').forEach((cont, i) => {
+    socios.push({
+      id: 'socio-' + Date.now() + i,
+      tipoPessoa: cont.dataset.tipoPessoa || 'pf',
+      nome: getFieldVal(cont, 'nome'),
+      cpf:  getFieldVal(cont, 'cpf'),
+      dataNascimento: getFieldVal(cont, 'dataNascimento'),
+      genero: cont.querySelector('input[data-field="genero"]')?.value || 'masculino',
+      nacionalidade: getFieldVal(cont, 'nacionalidade') || 'brasileira',
+      estadoCivil: getFieldVal(cont, 'estadoCivil'),
+      regimeBens: getFieldVal(cont, 'regimeBens'),
+      profissao: getFieldVal(cont, 'profissao'),
+      telefone: getFieldVal(cont, 'telefone'),
+      email: getFieldVal(cont, 'email'),
+      endereco: {
+        logradouroTipo: getFieldVal(cont, 'end_tipo'),
+        logradouroDescricao: getFieldVal(cont, 'end_desc'),
+        numero: getFieldVal(cont, 'end_num'),
+        complemento: getFieldVal(cont, 'end_compl'),
+        bairro: getFieldVal(cont, 'end_bairro'),
+        cidade: getFieldVal(cont, 'end_cidade'),
+        estado: getFieldVal(cont, 'end_estado'),
+        cep: getFieldVal(cont, 'end_cep'),
+      },
+      documentoIdentificacao: {
+        tipo: getFieldVal(cont, 'doc_tipo'),
+        numero: getFieldVal(cont, 'doc_numero'),
+        orgaoExpedidor: getFieldVal(cont, 'doc_orgao'),
+        dataExpedicao: getFieldVal(cont, 'doc_data'),
+      },
+      quantidadeCotas: parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0,
+      valorUnitarioCota: parseFloat(getFieldVal(cont, 'valorUnitarioCota')) || 1,
+      integralizacoes: [{
+        id: 'integ-' + Date.now() + i,
+        tipo: getFieldVal(cont, 'integ_tipo'),
+        valor: (parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0) *
+               (parseFloat(getFieldVal(cont, 'valorUnitarioCota')) || 1),
+        descricao: getFieldVal(cont, 'integ_desc'),
+      }],
+      administrador: cont.querySelector('[data-field="administrador"]').checked,
+      tipoAdministracao: getFieldVal(cont, 'tipoAdministracao'),
+      funcionarioPublico: false,
+      menorOuIncapaz: cont.querySelector('[data-field="menorOuIncapaz"]')?.checked || false,
+      representante: cont.querySelector('[data-field="menorOuIncapaz"]')?.checked ? {
+        tipo:           getFieldVal(cont, 'rep_tipo') || 'pai',
+        nome:           getFieldVal(cont, 'rep_nome'),
+        cpf:            getFieldVal(cont, 'rep_cpf'),
+        dataNascimento: getFieldVal(cont, 'rep_dataNascimento'),
+        genero:         getFieldVal(cont, 'rep_genero') || 'masculino',
+        nacionalidade:  getFieldVal(cont, 'rep_nacionalidade') || 'brasileira',
+        estadoCivil:    getFieldVal(cont, 'rep_estadoCivil') || 'solteiro',
+        profissao:      getFieldVal(cont, 'rep_profissao'),
+        endereco: {
+          logradouroTipo:      getFieldVal(cont, 'rep_end_tipo') || 'Rua',
+          logradouroDescricao: getFieldVal(cont, 'rep_end_desc'),
+          numero:              getFieldVal(cont, 'rep_end_num'),
+          complemento:         getFieldVal(cont, 'rep_end_compl'),
+          bairro:              getFieldVal(cont, 'rep_end_bairro'),
+          cidade:              getFieldVal(cont, 'rep_end_cidade'),
+          estado:              getFieldVal(cont, 'rep_end_estado') || 'PR',
+          cep:                 getFieldVal(cont, 'rep_end_cep'),
+        },
+        documentoIdentificacao: {
+          tipo:           getFieldVal(cont, 'rep_doc_tipo') || 'rg',
+          numero:         getFieldVal(cont, 'rep_doc_numero'),
+          orgaoExpedidor: getFieldVal(cont, 'rep_doc_orgao'),
+          dataExpedicao:  getFieldVal(cont, 'rep_doc_data'),
+        },
+      } : null,
+    });
+  });
+
+  const atividades = [];
+  document.querySelectorAll('#atividades-container .atividade-card').forEach((cont, i) => {
+    const cnae = getFieldVal(cont, 'cnae').trim();
+    const desc = getFieldVal(cont, 'descricao').trim();
+    if (!cnae && !desc) return;   // ignora linhas totalmente vazias
+    atividades.push({
+      id: 'ativ-' + Date.now() + i,
+      cnae,
+      descricao: desc,
+      principal: cont.querySelector('[data-field="principal"]').checked,
+      desenvolvidaNoLocal: cont.querySelector('[data-field="desenvolvidaNoLocal"]').checked,
+    });
+  });
+
+  const dados = {
+    empresa: {
+      razaoSocial: document.getElementById('razaoSocial').value.trim(),
+      naturezaJuridica: socios.length === 1 ? 'ltda_unipessoal' : 'ltda',
+      classificacao: document.getElementById('classificacao').value,
+      regimeTributario: document.getElementById('regimeTributario').value,
+      objetoSocial: document.getElementById('objetoSocial').value.trim(),
+      capitalSocial: parseFloat(document.getElementById('capitalSocial').value) || 0,
+      imovel: document.getElementById('imovel').value,
+      metragem: parseInt(document.getElementById('metragem').value) || 0,
+      telefone: document.getElementById('telefoneEmpresa').value.trim(),
+      email: document.getElementById('emailEmpresa').value.trim(),
+      enderecoComercial: {
+        logradouroTipo: document.getElementById('end_tipo').value,
+        logradouroDescricao: document.getElementById('end_desc').value.trim(),
+        numero: document.getElementById('end_num').value.trim(),
+        complemento: document.getElementById('end_compl').value.trim(),
+        quadra: document.getElementById('end_quadra').value.trim(),
+        lote: document.getElementById('end_lote').value.trim(),
+        inscricaoImobiliaria: document.getElementById('end_inscricao').value.trim(),
+        bairro: document.getElementById('end_bairro').value.trim(),
+        cidade: document.getElementById('end_cidade').value.trim(),
+        estado: document.getElementById('end_estado').value,
+        cep: document.getElementById('end_cep').value.trim(),
+        tipoUnidade: coletarCheckboxGrupo('end_tu_group'),
+        formaAtuacao: coletarCheckboxGrupo('end_fa_group'),
+      },
+      atividades,
+      socios,
+      atividedesExercidosNoLocal: atividades.some(a => a.desenvolvidaNoLocal) ? 'sim' : 'nao',
+    }
+  };
+
+  document.getElementById('dados_json').value = JSON.stringify(dados);
+  this.submit();
+});
+
+// ============================================================
+// Utilitários
+// ============================================================
+function getFieldVal(container, field) {
+  const el = container.querySelector('[data-field="' + field + '"]');
+  if (!el) return '';
+  return el.type === 'checkbox' ? el.checked : el.value;
+}
+
+function setField(container, field, value) {
+  const el = container.querySelector('[data-field="' + field + '"]');
+  if (!el) return;
+  if (el.type === 'checkbox') el.checked = !!value;
+  else { el.value = value; }
+}
+
+function coletarCheckboxGrupo(containerId) {
+  return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(e => e.value);
+}
+function restaurarCheckboxGrupo(containerId, valores) {
+  const vals = new Set(valores || []);
+  document.querySelectorAll(`#${containerId} input[type=checkbox]`).forEach(cb => {
+    cb.checked = vals.has(cb.value);
+  });
+}
+
+function setById(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+</script>
+{% endblock %}

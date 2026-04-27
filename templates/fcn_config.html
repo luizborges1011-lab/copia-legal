@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Configuração FCN — Perguntas Complementares{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h4 class="mb-0 fw-bold">Configuração FCN</h4>
+    <small class="text-muted">Respostas padrão para as perguntas complementares da Ficha de Cadastro Nacional</small>
+  </div>
+</div>
+
+<div class="alert alert-info small py-2">
+  <i class="bi bi-info-circle me-1"></i>
+  Preencha abaixo as respostas padrão que serão usadas como referência ao preencher a FCN junto à Junta Comercial.
+  Essas respostas podem ser ajustadas caso a caso, mas servem como modelo para agilizar o processo.
+</div>
+
+<form method="POST" action="/fcn-config">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-card-list me-2"></i>Perguntas Complementares — Padrão</div>
+    <div class="card-body">
+      {% for perg in perguntas %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold small">{{ perg.pergunta }}</label>
+        {% if perg.id in ['obs_gerais'] %}
+        <textarea class="form-control form-control-sm" name="resp_{{ perg.id }}" rows="3">{{ perg.resposta }}</textarea>
+        {% else %}
+        <input type="text" class="form-control form-control-sm" name="resp_{{ perg.id }}" value="{{ perg.resposta }}">
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="card-footer d-flex gap-2">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-save"></i> Salvar Configurações
+      </button>
+      <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </div>
+</form>
+
+<div class="card mt-4">
+  <div class="card-header"><i class="bi bi-lightbulb me-2"></i>Orientações para preenchimento da FCN</div>
+  <div class="card-body small">
+    <p class="text-muted mb-2">
+      A <strong>Ficha de Cadastro Nacional (FCN)</strong> é o documento exigido pela Junta Comercial no ato do registro
+      de constituição ou alteração de empresas. Além dos dados do contrato social, a FCN contém perguntas
+      complementares que devem ser respondidas pelo responsável legal.
+    </p>
+    <ul class="text-muted">
+      <li>As respostas devem refletir a realidade da empresa no momento do registro.</li>
+      <li>Informações sobre empregados, área e horário são obrigatórias para atividades sujeitas a licença de funcionamento.</li>
+      <li>Empresas com sócios no exterior devem consultar legislação específica (IN DREI nº 81/2020).</li>
+      <li>Para empresas de serviços sem estabelecimento fixo, indicar a modalidade correspondente na Viabilidade.</li>
+      <li>Em caso de dúvida, consulte o Módulo de Orientação do Portal Empresa Fácil / REDESIM.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Contratos Societários{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold">Dashboard</h4>
+    <small class="text-muted">Fichas salvas e contratos gerados</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/fcn-config" class="btn btn-outline-secondary">
+      <i class="bi bi-sliders"></i> Config FCN
+    </a>
+    <a href="/constituicao/nova" class="btn btn-primary">
+      <i class="bi bi-plus-circle"></i> Nova Constituição
+    </a>
+    <a href="/alteracao/nova" class="btn btn-outline-primary">
+      <i class="bi bi-file-earmark-diff"></i> Nova Alteração
+    </a>
+  </div>
+</div>
+
+<!-- Estatísticas -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card text-center py-3">
+      <div class="display-6 fw-bold text-primary">{{ constituicoes|length }}</div>
+      <div class="text-muted small">Constituições salvas</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center py-3">
+      <div class="display-6 fw-bold" style="color:#065f46;">
+        {{ constituicoes|selectattr('subtipo','equalto','ltda_unipessoal')|list|length }}
+      </div>
+      <div class="text-muted small">LTDA Unipessoal</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center py-3">
+      <div class="display-6 fw-bold" style="color:#1d4ed8;">
+        {{ constituicoes|selectattr('subtipo','equalto','ltda')|list|length }}
+      </div>
+      <div class="text-muted small">LTDA</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabela de constituições -->
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-file-earmark-text me-2"></i>Constituições de Empresas</span>
+  </div>
+  <div class="card-body p-0">
+    {% if constituicoes %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Razão Social</th>
+            <th>Tipo</th>
+            <th>Sócios</th>
+            <th>Capital</th>
+            <th>Salvo em</th>
+            <th class="text-end">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in constituicoes %}
+          {% set empresa = f.dados.empresa %}
+          {% set socios = empresa.socios|default([]) %}
+          {% set capital = empresa.capitalSocial|default(0)|float %}
+          <tr>
+            <td class="fw-semibold">{{ empresa.razaoSocial|upper }}</td>
+            <td>
+              {% if f.subtipo == 'ltda_unipessoal' %}
+              <span class="badge badge-unipessoal px-2 py-1">LTDA Unipessoal</span>
+              {% else %}
+              <span class="badge badge-ltda px-2 py-1">LTDA</span>
+              {% endif %}
+            </td>
+            <td>{{ socios|length }}</td>
+            <td>R$ {{ "%.2f"|format(capital)|replace(".",",")|replace(",",".",1) }}</td>
+            <td class="text-muted small">{{ f.atualizado_em[:16].replace('T',' ') }}</td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="/constituicao/{{ f.id }}/editar" class="btn btn-outline-secondary" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="/constituicao/{{ f.id }}/preparar" class="btn btn-outline-primary" title="Gerar contrato">
+                  <i class="bi bi-file-earmark-arrow-down"></i>
+                </a>
+                <button type="button" class="btn btn-outline-danger"
+                  onclick="confirmarExclusao({{ f.id }}, '{{ empresa.razaoSocial|e }}')" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-file-earmark-x" style="font-size:3rem;"></i>
+      <p class="mt-2">Nenhuma ficha cadastrada ainda.</p>
+      <a href="/constituicao/nova" class="btn btn-primary btn-sm">Criar primeira ficha</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tabela de alterações -->
+<div class="card mt-4">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-file-earmark-diff me-2"></i>Alterações Contratuais</span>
+    <a href="/alteracao/nova" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-plus"></i> Nova
+    </a>
+  </div>
+  <div class="card-body p-0">
+    {% if alteracoes %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Razão Social</th>
+            <th>Nº Alteração</th>
+            <th>Data</th>
+            <th>Salvo em</th>
+            <th class="text-end">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in alteracoes %}
+          {% set emp = f.dados.empresa_atual %}
+          <tr>
+            <td class="fw-semibold">{{ emp.razaoSocial|upper }}</td>
+            <td>{{ f.dados.numero_alteracao|default(1) }}ª Alteração</td>
+            <td class="text-muted small">{{ f.dados.data|default('—') }}</td>
+            <td class="text-muted small">{{ f.atualizado_em[:16] }}</td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="/alteracao/{{ f.id }}/editar" class="btn btn-outline-secondary" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="/alteracao/{{ f.id }}/gerar" class="btn btn-outline-primary" title="Baixar">
+                  <i class="bi bi-file-earmark-arrow-down"></i>
+                </a>
+                <button type="button" class="btn btn-outline-info" title="Eventos FCN/Viabilidade"
+                  data-fcn="{{ f.dados | tojson | e }}"
+                  onclick="mostrarEventosFCN(JSON.parse(this.dataset.fcn))">
+                  <i class="bi bi-card-checklist"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger"
+                  onclick="confirmarExclusaoAlt({{ f.id }}, '{{ emp.razaoSocial|e }}')" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i class="bi bi-file-earmark-diff" style="font-size:2.5rem;"></i>
+      <p class="mt-2 mb-0 small">Nenhuma alteração cadastrada.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal FCN/Viabilidade Eventos -->
+<div class="modal fade" id="modalEventosFCN" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-card-checklist me-2"></i>Eventos FCN / Viabilidade</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Eventos aplicáveis a esta alteração, a serem marcados na Viabilidade e/ou FCN junto ao DREI/Junta Comercial.</p>
+        <div id="fcn-eventos-lista"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal exclusão -->
+<div class="modal fade" id="modalExcluir" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Confirmar exclusão</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small" id="modalExcluirMsg"></div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form id="formExcluir" method="POST">
+          <button class="btn btn-sm btn-danger">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmarExclusao(id, nome) {
+  document.getElementById('modalExcluirMsg').textContent = 'Excluir "' + nome + '"? Esta ação não pode ser desfeita.';
+  document.getElementById('formExcluir').action = '/constituicao/' + id + '/excluir';
+  new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+function confirmarExclusaoAlt(id, nome) {
+  document.getElementById('modalExcluirMsg').textContent = 'Excluir alteração de "' + nome + '"?';
+  document.getElementById('formExcluir').action = '/alteracao/' + id + '/excluir';
+  new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+
+function mostrarEventosFCN(dados) {
+  const alt = dados.alteracoes || {};
+  const empresa = dados.empresa_atual || {};
+  const nomeEmpresa = empresa.razaoSocial || '';
+  const numAlt = dados.numero_alteracao || 1;
+
+  // Mapeia seções ativas → eventos FCN/Viabilidade
+  const eventos = [];
+
+  // Sempre incluso: Consolidação
+  eventos.push({
+    icon: 'bi-file-earmark-text',
+    color: 'primary',
+    evento: 'Consolidação de Contrato Social',
+    viabilidade: false,
+    fcn: true,
+    obs: 'Sempre necessária em alterações contratuais.'
+  });
+
+  if (alt.nome_empresarial?.ativo) {
+    eventos.push({
+      icon: 'bi-building',
+      color: 'warning',
+      evento: 'Alteração de Nome Empresarial (Firma ou Denominação)',
+      viabilidade: true,
+      fcn: true,
+      obs: `Novo nome: ${alt.nome_empresarial.novo || '—'}`
+    });
+  }
+
+  if (alt.endereco?.ativo) {
+    eventos.push({
+      icon: 'bi-geo-alt',
+      color: 'info',
+      evento: 'Mudança de Endereço da Sede',
+      viabilidade: true,
+      fcn: true,
+      obs: alt.endereco.novo ? `${alt.endereco.novo.logradouroTipo || ''} ${alt.endereco.novo.logradouroDescricao || ''}, ${alt.endereco.novo.numero || ''} — ${alt.endereco.novo.cidade || ''}/${alt.endereco.novo.estado || ''}` : ''
+    });
+  }
+
+  if (alt.capital_social?.ativo) {
+    eventos.push({
+      icon: 'bi-cash-coin',
+      color: 'success',
+      evento: 'Alteração de Capital Social',
+      viabilidade: false,
+      fcn: true,
+      obs: 'Verificar se houve aumento ou redução e informar o novo valor na FCN.'
+    });
+  }
+
+  const ingressos = alt.ingresso_socios || [];
+  if (ingressos.length > 0) {
+    eventos.push({
+      icon: 'bi-person-plus',
+      color: 'success',
+      evento: 'Ingresso de Sócio(s)',
+      viabilidade: false,
+      fcn: true,
+      obs: ingressos.map(s => s.nome || '').filter(Boolean).join(', ')
+    });
+  }
+
+  const retiradas = alt.retirada_socios || [];
+  if (retiradas.length > 0) {
+    eventos.push({
+      icon: 'bi-person-dash',
+      color: 'danger',
+      evento: 'Retirada de Sócio(s)',
+      viabilidade: false,
+      fcn: true,
+      obs: retiradas.map(s => s.nome || '').filter(Boolean).join(', ')
+    });
+  }
+
+  if ((ingressos.length > 0 || retiradas.length > 0) || (alt.transferencia_cotas || []).length > 0) {
+    eventos.push({
+      icon: 'bi-people',
+      color: 'secondary',
+      evento: 'Alteração do Quadro Societário (QSA)',
+      viabilidade: true,
+      fcn: true,
+      obs: 'Atualizar sócios na Viabilidade e FCN.'
+    });
+  }
+
+  const transfs = alt.transferencia_cotas || [];
+  if (transfs.length > 0) {
+    eventos.push({
+      icon: 'bi-arrow-left-right',
+      color: 'info',
+      evento: 'Transferência de Cotas',
+      viabilidade: false,
+      fcn: true,
+      obs: transfs.map(t => `${t.cedente_nome || '?'} → ${t.cessionario_nome || '?'}`).join('; ')
+    });
+  }
+
+  if (alt.administracao?.ativo) {
+    const adms = (alt.administracao.administradores || []).map(a => a.nome || '').filter(Boolean);
+    eventos.push({
+      icon: 'bi-person-badge',
+      color: 'warning',
+      evento: 'Alteração de Administrador(es)',
+      viabilidade: false,
+      fcn: true,
+      obs: adms.length ? adms.join(', ') : ''
+    });
+  }
+
+  if (alt.objeto_social?.ativo) {
+    eventos.push({
+      icon: 'bi-tag',
+      color: 'secondary',
+      evento: 'Alteração de Objeto Social / CNAE',
+      viabilidade: true,
+      fcn: true,
+      obs: 'Verificar alteração de atividades econômicas — pode exigir nova Viabilidade.'
+    });
+  }
+
+  // Render
+  const lista = document.getElementById('fcn-eventos-lista');
+  lista.innerHTML = eventos.map(e => `
+    <div class="d-flex align-items-start gap-3 mb-3 p-2 border rounded">
+      <div class="fs-4 text-${e.color} mt-1"><i class="bi ${e.icon}"></i></div>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">${e.evento}</div>
+        ${e.obs ? `<div class="text-muted small">${e.obs}</div>` : ''}
+        <div class="mt-1">
+          ${e.viabilidade ? '<span class="badge bg-warning text-dark me-1">Viabilidade</span>' : ''}
+          ${e.fcn ? '<span class="badge bg-primary me-1">FCN</span>' : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  new bootstrap.Modal(document.getElementById('modalEventosFCN')).show();
+}
+</script>
+{% endblock %}

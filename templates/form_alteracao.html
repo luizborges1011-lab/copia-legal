@@ -1,0 +1,2595 @@
+{% extends "base.html" %}
+{% block title %}Alteração Contratual{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h4 class="mb-0 fw-bold">Alteração Contratual</h4>
+    <small class="text-muted">LTDA ou LTDA Unipessoal — com consolidação automática</small>
+  </div>
+</div>
+
+<form id="formAlteracao" method="POST" action="/alteracao/salvar" enctype="multipart/form-data">
+  <input type="hidden" name="dados_json" id="dados_json">
+  <input type="hidden" name="ficha_id" value="{{ ficha_id or '' }}">
+
+  <!-- ================================================================ -->
+  <!-- UPLOAD PARA AUTO-PREENCHIMENTO -->
+  <!-- ================================================================ -->
+  <div class="card mb-4 border-primary" id="card-upload" {% if ficha_id %}style="display:none;"{% endif %}>
+    <div class="card-header bg-primary text-white">
+      <i class="bi bi-cloud-upload me-2"></i>Importar contrato existente (opcional)
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Envie o contrato social ou a última alteração em <strong>PDF ou DOCX</strong> para preencher automaticamente.
+        {% if not openai_ok %}<span class="badge bg-warning text-dark">OPENAI_API_KEY não configurada</span>{% endif %}
+      </p>
+      <div class="row align-items-center g-3">
+        <div class="col-md-6"><input type="file" class="form-control" id="arquivo_contrato" accept=".docx,.pdf"></div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-outline-primary" onclick="extrairDocx()" id="btnExtrair">
+            <i class="bi bi-magic"></i> Extrair dados
+          </button>
+        </div>
+        <div class="col-auto" id="extracao_status" style="display:none;">
+          <span class="text-muted small"><i class="bi bi-hourglass-split"></i> Extraindo...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- DADOS DA EMPRESA -->
+  <!-- ================================================================ -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-building me-2"></i>Dados da Empresa (estado atual)</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required">Razão Social</label>
+          <input type="text" class="form-control" id="razaoSocial" placeholder="EMPRESA LTDA" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">CNPJ</label>
+          <input type="text" class="form-control" id="cnpj" placeholder="00.000.000/0001-00" maxlength="18"
+                 oninput="mascaraCNPJ(this)">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">NIRE</label>
+          <input type="text" class="form-control" id="nire" placeholder="41212494884">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Classificação</label>
+          <select class="form-select" id="classificacao">
+            <option value="me">Microempresa (ME)</option>
+            <option value="epp">Empresa de Pequeno Porte (EPP)</option>
+            <option value="regime_normal">Regime Normal</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Nº da Alteração</label>
+          <input type="number" class="form-control" id="numero_alteracao" value="1" min="1">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Data da Alteração</label>
+          <input type="date" class="form-control" id="data_alteracao">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Data de início das atividades</label>
+          <input type="text" class="form-control" id="dataInicio" placeholder="01/01/2024">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Objeto Social Atual</label>
+          <textarea class="form-control" id="objetoSocial" rows="3" style="resize:vertical;"></textarea>
+        </div>
+      </div>
+
+      <!-- Endereço ATUAL com CEP -->
+      <div class="section-title mt-3">Endereço Atual da Sede</div>
+      <div class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label">CEP</label>
+          <input type="text" class="form-control" id="end_cep" maxlength="9" placeholder="00000-000"
+                 oninput="mascaraCEP(this)" onblur="buscarCEPAtual()">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" id="end_tipo">
+            <option value="Rua">Rua</option><option value="Avenida">Avenida</option>
+            <option value="Alameda">Alameda</option><option value="Travessa">Travessa</option>
+            <option value="Rodovia">Rodovia</option><option value="Estrada">Estrada</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required">Logradouro</label>
+          <input type="text" class="form-control" id="end_desc">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label required">Nº</label>
+          <input type="text" class="form-control" id="end_num">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Complemento</label>
+          <input type="text" class="form-control" id="end_compl">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label required">Bairro</label>
+          <input type="text" class="form-control" id="end_bairro">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required">Cidade</label>
+          <input type="text" class="form-control" id="end_cidade">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Estado</label>
+          <select class="form-select" id="end_estado">
+            <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Quadra</label>
+          <input type="text" class="form-control" id="end_quadra" placeholder="Quadra">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Lote</label>
+          <input type="text" class="form-control" id="end_lote" placeholder="Lote">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Inscrição Imobiliária</label>
+          <input type="text" class="form-control" id="end_inscricao" placeholder="Inscrição Imobiliária">
+        </div>
+      </div>
+
+      <!-- Atividades atuais com CNAE search -->
+      <div class="section-title mt-3 d-flex justify-content-between align-items-center">
+        <span>Atividades Atuais (CNAEs)</span>
+        <div class="d-flex align-items-center gap-2">
+          <span id="cnae-loading" class="small text-muted" style="display:none;">Carregando CNAEs...</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="adicionarAtivAtual()">
+            <i class="bi bi-plus"></i>
+          </button>
+        </div>
+      </div>
+      <div id="atividades-atuais-container"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SÓCIOS ATUAIS -->
+  <!-- ================================================================ -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-people me-2"></i>Sócios Atuais</span>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="adicionarSocioAtual()">
+        <i class="bi bi-person-plus"></i> Adicionar
+      </button>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        <i class="bi bi-info-circle me-1"></i>A administração fica bloqueada aqui. Ative <strong>"Mudança de administrador"</strong> abaixo para editar.
+      </p>
+      <div id="socios-atuais-container"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SELECIONAR ALTERAÇÕES -->
+  <!-- ================================================================ -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-pencil-square me-2"></i>O que será alterado?</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_endereco" onchange="toggleSecao('sec-endereco',this)">
+            <label class="form-check-label" for="alt_endereco">Endereço da sede</label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_capital" onchange="toggleSecao('sec-capital',this)">
+            <label class="form-check-label" for="alt_capital">Aumento / Redução de capital</label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_ingresso" onchange="toggleSecao('sec-ingresso',this)">
+            <label class="form-check-label" for="alt_ingresso">
+              Ingresso de sócio
+              <small class="d-block text-muted fw-normal" style="font-size:0.75em;">Novo sócio entra com capital próprio</small>
+            </label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_retirada" onchange="toggleSecao('sec-retirada',this)">
+            <label class="form-check-label" for="alt_retirada">
+              Retirada de sócio
+              <small class="d-block text-muted fw-normal" style="font-size:0.75em;">Sócio vende <strong>todas</strong> as cotas e sai</small>
+            </label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_cotas" onchange="toggleSecao('sec-cotas',this)">
+            <label class="form-check-label" for="alt_cotas">
+              Venda / Transferência de quotas
+              <small class="d-block text-muted fw-normal" style="font-size:0.75em;">Sócio vende <strong>parte</strong> das cotas e permanece</small>
+            </label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_nome" onchange="toggleSecao('sec-nome',this)">
+            <label class="form-check-label" for="alt_nome">
+              Alteração de Nome Empresarial
+              <small class="d-block text-muted fw-normal" style="font-size:0.75em;">Nova razão social / firma / denominação</small>
+            </label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_adm" onchange="toggleAltAdm(this)">
+            <label class="form-check-label" for="alt_adm">Mudança de administrador</label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_objeto" onchange="toggleSecao('sec-objeto',this)">
+            <label class="form-check-label" for="alt_objeto">Objeto / Atividade</label>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="alt_outras" onchange="toggleSecao('sec-outras',this)">
+            <label class="form-check-label" for="alt_outras">Outras cláusulas</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: NOME EMPRESARIAL -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-nome" style="display:none;">
+    <div class="card-header bg-light"><i class="bi bi-building me-2"></i>Alteração de Nome Empresarial</div>
+    <div class="card-body">
+      <!-- Nota informativa colapsável -->
+      <div class="mb-3">
+        <button type="button" class="btn btn-link btn-sm text-muted p-0"
+                data-bs-toggle="collapse" data-bs-target="#info-nome-alt">
+          <i class="bi bi-info-circle me-1"></i>Regras para Nome Empresarial LTDA
+        </button>
+        <div class="collapse mt-2" id="info-nome-alt">
+          <div class="card card-body bg-light small py-2" style="font-size:0.78rem; max-height:220px; overflow-y:auto;">
+            <strong>FIRMA OU DENOMINAÇÃO</strong>
+            <p class="mb-1 mt-1">A LTDA pode usar <strong>firma</strong> (nome civil do(s) sócio(s)) ou <strong>denominação</strong> (qualquer palavra nacional ou estrangeira). Deve terminar com <strong>"LIMITADA"</strong> ou <strong>"LTDA"</strong>.</p>
+            <p class="mb-1"><strong>Firma:</strong> nome de pelo menos 1 sócio. Se não individualiza todos, acrescentar "e Companhia"/"& Cia." + LTDA. FILHO, JÚNIOR, NETO etc. não podem ser abreviados. Último sobrenome não pode ser abreviado.</p>
+            <p class="mb-1"><strong>Denominação:</strong> qualquer palavra + LTDA. SPE pode agregar "SPE" antes de "LTDA". ESC deve conter "Empresa Simples de Crédito" e não pode usar "banco".</p>
+            <p class="mb-0"><strong>Vedado:</strong> nome idêntico/semelhante ao já registrado; palavras atentatórias à moral; siglas de órgãos públicos; atividade fora do objeto; designação de porte no nome; "grupo" sem convenção formal.</p>
+          </div>
+        </div>
+      </div>
+      <!-- Tipo de nome -->
+      <div class="mb-2">
+        <div class="d-flex align-items-center gap-3 small">
+          <span class="text-muted fw-semibold">Tipo de nome:</span>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="radio" name="tipo_nome_alt" id="tipo_nome_alt_firma" value="firma">
+            <label class="form-check-label" for="tipo_nome_alt_firma">Firma <span class="text-muted">(usa sobrenome dos sócios)</span></label>
+          </div>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="radio" name="tipo_nome_alt" id="tipo_nome_alt_denom" value="denominacao" checked>
+            <label class="form-check-label" for="tipo_nome_alt_denom">Denominação <span class="text-muted">(nome livre)</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label">Nova Razão Social</label>
+          <input type="text" class="form-control" id="nova_razao_social"
+                 placeholder="NOVO NOME DA EMPRESA LTDA">
+        </div>
+        <div class="col-auto d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-verificar-rs"
+                  onclick="verificarRazaoSocial()" title="Verificar conformidade com as regras do DREI">
+            <i class="bi bi-search me-1"></i>Verificar
+          </button>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="btn-sugerir-rs"
+                  onclick="sugerirRazaoSocial()" title="Sugerir nomes com base nos sócios e atividades">
+            <i class="bi bi-lightbulb me-1"></i>Sugerir
+          </button>
+        </div>
+      </div>
+      <div id="rs-status" class="mt-2" style="display:none;"></div>
+      <div id="rs-sugestoes" class="mt-1" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: NOVO ENDEREÇO -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-endereco" style="display:none;">
+    <div class="card-header bg-light"><i class="bi bi-geo-alt me-2"></i>Novo Endereço da Sede</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label">CEP</label>
+          <input type="text" class="form-control" id="novo_end_cep" maxlength="9" placeholder="00000-000"
+                 oninput="mascaraCEP(this)" onblur="buscarCEPNovo()">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" id="novo_end_tipo">
+            <option value="Rua">Rua</option><option value="Avenida">Avenida</option>
+            <option value="Alameda">Alameda</option><option value="Travessa">Travessa</option>
+            <option value="Rodovia">Rodovia</option><option value="Estrada">Estrada</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Logradouro</label>
+          <input type="text" class="form-control" id="novo_end_desc">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Nº</label>
+          <input type="text" class="form-control" id="novo_end_num">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Complemento</label>
+          <input type="text" class="form-control" id="novo_end_compl">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Bairro</label>
+          <input type="text" class="form-control" id="novo_end_bairro">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Cidade</label>
+          <input type="text" class="form-control" id="novo_end_cidade">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Estado</label>
+          <select class="form-select" id="novo_end_estado">
+            <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Quadra</label>
+          <input type="text" class="form-control" id="novo_end_quadra" placeholder="Quadra">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Lote</label>
+          <input type="text" class="form-control" id="novo_end_lote" placeholder="Lote">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Inscrição Imobiliária</label>
+          <input type="text" class="form-control" id="novo_end_inscricao" placeholder="Inscrição Imobiliária">
+        </div>
+      </div>
+
+      <!-- Tipo de Unidade -->
+      <div class="mt-3">
+        <label class="form-label fw-semibold small">Tipo de Unidade</label>
+        <div id="novo_end_tu_group" class="d-flex flex-wrap gap-2">
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Unidade Produtiva" checked><label class="form-check-label small">Unidade Produtiva</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Sede" checked><label class="form-check-label small">Sede</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Depósito Fechado"><label class="form-check-label small">Depósito Fechado</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Almoxarifado"><label class="form-check-label small">Almoxarifado</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Oficina de Reparação"><label class="form-check-label small">Oficina de Reparação</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Garagem"><label class="form-check-label small">Garagem</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Unidade de Abastecimento de Combustíveis"><label class="form-check-label small">Unidade de Abastecimento de Combustíveis</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Ponto de Exposição"><label class="form-check-label small">Ponto de Exposição</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Centro de Treinamento"><label class="form-check-label small">Centro de Treinamento</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Centro de Processamento de Dados"><label class="form-check-label small">Centro de Processamento de Dados</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Posto de Coleta"><label class="form-check-label small">Posto de Coleta</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Posto de Serviço"><label class="form-check-label small">Posto de Serviço</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Escritório Administrativo"><label class="form-check-label small">Escritório Administrativo</label></div>
+        </div>
+      </div>
+
+      <!-- Forma de Atuação -->
+      <div class="mt-2 mb-2">
+        <label class="form-label fw-semibold small">Forma de Atuação</label>
+        <div id="novo_end_fa_group" class="d-flex flex-wrap gap-2">
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Estabelecimento Fixo"><label class="form-check-label small">Estabelecimento Fixo</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Internet"><label class="form-check-label small">Internet</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Em Local Fixo Fora de Loja"><label class="form-check-label small">Em Local Fixo Fora de Loja</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Correio"><label class="form-check-label small">Correio</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Televendas"><label class="form-check-label small">Televendas</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Porta a Porta/Postos Móveis ou por Ambulantes"><label class="form-check-label small">Porta a Porta/Postos Móveis ou por Ambulantes</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Máquinas Automáticas"><label class="form-check-label small">Máquinas Automáticas</label></div>
+          <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" value="Atividade Desenvolvida Fora do Estabelecimento"><label class="form-check-label small">Atividade Desenvolvida Fora do Estabelecimento</label></div>
+        </div>
+      </div>
+
+      <div class="alert alert-info small mt-3 py-2">
+        <i class="bi bi-info-circle me-1"></i>Digite o CEP para preencher automaticamente. Informe apenas o número e o complemento.
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: AUMENTO / REDUÇÃO DE CAPITAL SOCIAL -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-capital" style="display:none;">
+    <div class="card-header bg-light"><i class="bi bi-cash-coin me-2"></i>Aumento / Redução de Capital Social</div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Informe a nova quantidade de cotas de cada sócio. <strong>Se informar 0 (zero)</strong>, o sócio será considerado como <strong>retirado</strong>
+        e será gerada automaticamente a cláusula de conhecimento e quitação.
+      </p>
+      <div id="capital-socios-container"></div>
+      <div class="mt-2 p-2 bg-light rounded small text-muted">
+        <strong>Capital resultante:</strong> R$ <span id="capital-resultado">0,00</span> |
+        <strong>Total de cotas:</strong> <span id="capital-cotas-total">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: INGRESSO DE SÓCIO -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-ingresso" style="display:none;">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-person-plus me-2"></i>Ingresso de Sócio — Aumento de Capital</span>
+      <button type="button" class="btn btn-sm btn-light" onclick="adicionarSocioNovo()">
+        <i class="bi bi-plus"></i> Adicionar Ingressante
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-success small py-2 mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Quando usar:</strong> Um <em>novo sócio</em> entra na sociedade com capital próprio (aumento do capital social).
+        O documento gerará: cláusula de ingresso com qualificação completa + declaração de conhecimento da situação econômica da empresa.<br>
+        <span class="text-danger fw-semibold">Atenção:</span> Se o novo sócio está <em>comprando cotas de um sócio existente</em>, use <strong>"Venda / Transferência de Quotas"</strong> abaixo.
+      </div>
+      <div id="socios-novos-container"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: RETIRADA DE SÓCIO -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-retirada" style="display:none;">
+    <div class="card-header bg-danger text-white"><i class="bi bi-person-dash me-2"></i>Retirada de Sócio — Venda Total das Cotas</div>
+    <div class="card-body">
+      <div class="alert alert-danger small py-2 mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Quando usar:</strong> O sócio vende <strong>TODAS</strong> as suas quotas e se retira definitivamente da sociedade.
+        O documento gerará: cláusula de retirada com valor das quotas + <strong>declaração de quitação plena</strong> (nada mais a reclamar).
+        <ul class="mb-0 mt-1">
+          <li><strong>Para sócios remanescentes:</strong> As quotas ficam com os demais sócios (sem destinatário específico).</li>
+          <li><strong>Para sócio existente:</strong> As quotas são compradas por outro sócio já no quadro.</li>
+          <li><strong>Para novo sócio:</strong> As quotas são compradas por alguém de fora — será gerada também a cláusula de ingresso e declaração de conhecimento do ingressante.</li>
+        </ul>
+        <span class="text-dark fw-semibold">Se o sócio vende apenas parte das cotas e permanece no quadro, use "Venda / Transferência de Quotas".</span>
+      </div>
+      <p class="small text-muted mb-2">Marque quais sócios se retiram (ou adicione manualmente):</p>
+      <div id="retirada-socios-atuais" class="mb-3"></div>
+      <div id="retirada-container"></div>
+      <button type="button" class="btn btn-sm btn-outline-danger mt-1" onclick="adicionarRetirada()">
+        <i class="bi bi-plus"></i> Adicionar manualmente
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: VENDA / TRANSFERÊNCIA DE COTAS -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-cotas" style="display:none;">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-arrow-left-right me-2"></i>Venda / Transferência de Quotas — Sócio Permanece no Quadro</span>
+      <button type="button" class="btn btn-sm btn-light" onclick="adicionarTransferencia()">
+        <i class="bi bi-plus"></i> Adicionar
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-primary small py-2 mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Quando usar:</strong> Um sócio vende <strong>parte</strong> das suas quotas e continua no quadro societário.
+        O documento gerará: cláusula de transferência de quotas com valor.
+        <ul class="mb-0 mt-1">
+          <li><strong>Para sócio remanescente (existente):</strong> Vende para outro sócio que já está no quadro.</li>
+          <li><strong>Para novo sócio (ingressante):</strong> Vende para alguém de fora — serão geradas também a cláusula de ingresso e declaração de conhecimento da situação econômica da empresa.</li>
+        </ul>
+        <span class="text-dark fw-semibold">Se o sócio está vendendo TODAS as cotas e saindo, use "Retirada de Sócio".</span>
+      </div>
+      <div id="transferencia-container"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: ADMINISTRAÇÃO -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-adm" style="display:none;">
+    <div class="card-header bg-light"><i class="bi bi-person-badge me-2"></i>Mudança de Administrador</div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Tipo de Administração</label>
+          <select class="form-select" id="adm_tipo">
+            <option value="isolada">Isolada (cada um age sozinho)</option>
+            <option value="isolada_conjunta">Isoladamente e/ou Conjuntamente</option>
+            <option value="conjunta">Conjunta (todos devem assinar)</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-muted small mb-2">Marque quem será administrador após a alteração:</p>
+      <div id="adm-socios-container"></div>
+      <div class="alert alert-warning small mt-3 py-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        A alteração de administrador gera automaticamente a <strong>Cláusula de Declaração de Desimpedimento</strong>
+        e a <strong>Cláusula de Responsabilidade do Administrador</strong> no instrumento.
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: OBJETO SOCIAL / ATIVIDADES -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-objeto" style="display:none;">
+    <div class="card-header bg-light"><i class="bi bi-briefcase me-2"></i>Novo Objeto Social e Atividades</div>
+    <div class="card-body">
+      <!-- Objeto -->
+      <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="form-label mb-0">Novo Objeto Social</label>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="gerarObjetoIA()" id="btn-ia-objeto">
+            <i class="bi bi-magic me-1"></i>Sugerir com IA
+          </button>
+        </div>
+        <div class="mb-2">
+          <input type="text" class="form-control form-control-sm" id="ia-descricao-obj"
+                 placeholder="Descreva as atividades em linguagem simples para a IA sugerir o objeto e CNAEs...">
+        </div>
+        <textarea class="form-control" id="novo_objeto" rows="4" style="resize:vertical;"
+                  placeholder="Texto formal do objeto social (preenche automaticamente ou edite)..."></textarea>
+        <div id="ia-obj-status" class="small text-muted mt-1" style="display:none;"></div>
+      </div>
+      <!-- CNAEs atuais (para manter/excluir) -->
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="form-label mb-0">Atividades (CNAEs)</label>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="adicionarAtivNova()">
+          <i class="bi bi-plus"></i> Adicionar
+        </button>
+      </div>
+      <p class="text-muted small mb-2">Os CNAEs abaixo serão os vigentes após a alteração. Remova os que não terá mais e adicione novos.</p>
+      <div id="atividades-novas-container"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- SEÇÃO: OUTRAS CLÁUSULAS -->
+  <!-- ================================================================ -->
+  <div class="card mb-4" id="sec-outras" style="display:none;">
+    <div class="card-header bg-light"><i class="bi bi-file-text me-2"></i>Outras Cláusulas</div>
+    <div class="card-body">
+
+      <!-- Tabs -->
+      <ul class="nav nav-tabs mb-3" id="outrasTabs">
+        <li class="nav-item">
+          <button class="nav-link active small" data-bs-toggle="tab" data-bs-target="#tab-nova-clausula">
+            <i class="bi bi-plus-circle me-1"></i>Nova cláusula
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link small" data-bs-toggle="tab" data-bs-target="#tab-alterar-clausula">
+            <i class="bi bi-pencil me-1"></i>Alterar cláusula existente
+          </button>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+        <!-- TAB: NOVA CLÁUSULA -->
+        <div class="tab-pane fade show active" id="tab-nova-clausula">
+          <!-- Sub-tabs -->
+          <div class="btn-group btn-group-sm mb-3" role="group">
+            <button type="button" class="btn btn-outline-secondary active" onclick="mostrarFonteClausula('livre', this)">Texto livre</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteClausula('banco', this)">Do banco</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteClausula('padrao', this)">Padrão</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteClausula('ia', this)">
+              <i class="bi bi-magic me-1"></i>IA
+            </button>
+          </div>
+
+          <!-- Livre -->
+          <div id="fonte-livre">
+            <div class="row g-2 mb-2">
+              <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm" id="nova-cl-titulo"
+                       placeholder="Título (ex: CLÁUSULA — DA POLÍTICA DE DIVIDENDOS)">
+              </div>
+              <div class="col-md-8">
+                <textarea class="form-control form-control-sm" id="nova-cl-corpo" rows="3"
+                          placeholder="Texto da cláusula..."></textarea>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" onclick="incluirClausulaLivre()">
+              <i class="bi bi-plus-circle me-1"></i>Incluir
+            </button>
+          </div>
+
+          <!-- Banco -->
+          <div id="fonte-banco" style="display:none;">
+            {% if clausulas_banco %}
+            <div class="list-group mb-3" style="max-height:300px; overflow-y:auto;">
+              {% for cl in clausulas_banco %}
+              <button type="button" class="list-group-item list-group-item-action py-2"
+                      onclick="incluirClausulaDosBanco({{ cl.id }}, {{ cl.titulo | tojson }}, {{ cl.corpo | tojson }})">
+                <span class="fw-semibold small">{{ cl.titulo }}</span>
+                <p class="text-muted small mb-0 mt-1">{{ cl.corpo[:120] }}{% if cl.corpo|length > 120 %}...{% endif %}</p>
+              </button>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted small">Nenhuma cláusula no banco ainda. <a href="/clausulas">Adicione no banco de cláusulas.</a></p>
+            {% endif %}
+          </div>
+
+          <!-- Padrão -->
+          <div id="fonte-padrao" style="display:none;">
+            {% if modelos_clausulas %}
+            <div class="list-group mb-3" style="max-height:300px; overflow-y:auto;">
+              {% for cl in modelos_clausulas %}
+              {% if cl.corpo %}
+              <button type="button" class="list-group-item list-group-item-action py-2"
+                      onclick="incluirClausulaDosBanco(0, {{ cl.titulo | tojson }}, {{ cl.corpo | tojson }})">
+                <span class="fw-semibold small">{{ cl.titulo }}</span>
+                <p class="text-muted small mb-0 mt-1">{{ cl.corpo[:120] }}{% if cl.corpo|length > 120 %}...{% endif %}</p>
+              </button>
+              {% endif %}
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted small">Nenhum modelo configurado.</p>
+            {% endif %}
+          </div>
+
+          <!-- IA -->
+          <div id="fonte-ia" style="display:none;">
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <input type="text" class="form-control form-control-sm" id="ia-cl-descricao"
+                       placeholder="Descreva a cláusula (ex: política de retenção de lucros)">
+              </div>
+              <div class="col-auto">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="gerarClausulaIA()">
+                  <i class="bi bi-magic me-1"></i>Gerar
+                </button>
+              </div>
+              <div class="col-12" id="ia-cl-resultado" style="display:none;">
+                <textarea class="form-control form-control-sm" id="ia-cl-texto" rows="4"></textarea>
+                <input type="text" class="form-control form-control-sm mt-1" id="ia-cl-titulo-res"
+                       placeholder="Título da cláusula">
+                <button type="button" class="btn btn-sm btn-primary mt-1" onclick="incluirClausulaIA()">
+                  <i class="bi bi-plus-circle me-1"></i>Incluir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: ALTERAR CLÁUSULA EXISTENTE -->
+        <div class="tab-pane fade" id="tab-alterar-clausula">
+          <p class="text-muted small mb-2">
+            Selecione a cláusula do contrato vigente que deseja alterar e forneça a nova redação.
+          </p>
+          <div class="row g-2 mb-2">
+            <div class="col-md-5">
+              <select class="form-select form-select-sm" id="clausula-existente-sel">
+                <option value="">— Selecionar cláusula —</option>
+                <option value="I">I – Nome Empresarial</option>
+                <option value="II">II – Sede</option>
+                <option value="III">III – Objeto Social</option>
+                <option value="IV">IV – Início / Prazo</option>
+                <option value="V">V – Capital Social</option>
+                <option value="VI">VI – Administração</option>
+                <option value="VII">VII – Balanço Patrimonial</option>
+                <option value="VIII">VIII – Declaração de Desimpedimento</option>
+                <option value="IX">IX – Pró-Labore</option>
+                <option value="X">X – Distribuição de Lucros</option>
+                <option value="XI">XI – Retirada ou Falecimento</option>
+                <option value="XII">XII – Cessão de Quotas</option>
+                <option value="XIII">XIII – Responsabilidade</option>
+                <option value="XIV">XIV – Porte Empresarial</option>
+                <option value="outro">Outra (especificar)</option>
+              </select>
+            </div>
+            <div class="col-md-7">
+              <input type="text" class="form-control form-control-sm" id="clausula-existente-subtitulo"
+                     placeholder="Subtítulo / complemento (opcional)">
+            </div>
+            <div class="col-12">
+              <textarea class="form-control form-control-sm" id="clausula-existente-corpo" rows="5"
+                        placeholder="Nova redação completa da cláusula..."></textarea>
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-sm btn-warning" onclick="incluirAlteracaoClausula()">
+                <i class="bi bi-arrow-repeat me-1"></i>Incluir alteração
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de cláusulas incluídas -->
+      <div class="mt-3">
+        <label class="form-label fw-semibold small">Cláusulas incluídas nesta alteração:</label>
+        <div id="outras-clausulas-container">
+          <p class="text-muted small" id="msg-sem-clausulas">Nenhuma cláusula adicionada.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Botões -->
+  <div class="d-flex gap-2 mb-5">
+    <button type="submit" class="btn btn-primary px-4">
+      <i class="bi bi-save"></i> Salvar Ficha
+    </button>
+    <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+
+<!-- ================================================================ -->
+<!-- TEMPLATES -->
+<!-- ================================================================ -->
+
+<!-- Sócio Atual -->
+<template id="tpl-socio-atual">
+  <div class="socio-card" id="satual-__IDX__">
+    <!-- Leitura de documento -->
+    <div class="d-flex align-items-center gap-2 mb-2 p-2 bg-light rounded">
+      <label class="form-label mb-0 small fw-semibold">Ler documento (RG/CNH/PDF):</label>
+      <input type="file" class="form-control form-control-sm" style="max-width:260px;"
+             accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="lerDocumentoAtual(this,'satual-__IDX__')">
+      <span class="doc-status-atual small text-muted"></span>
+    </div>
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <h6 class="mb-0 fw-bold text-secondary"><i class="bi bi-person-circle me-1"></i>Sócio Atual <span class="num-s">__NUM__</span></h6>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check mb-0">
+          <input class="form-check-input adm-check" type="checkbox" data-field="administrador"
+                 id="adm_sa___IDX__" disabled>
+          <label class="form-check-label small text-muted" for="adm_sa___IDX__">Administrador</label>
+        </div>
+        <div class="adm-tipo-field" style="display:none;">
+          <select class="form-select form-select-sm" data-field="tipoAdministracao" style="width:auto;" disabled>
+            <option value="isolada">Isolada</option>
+            <option value="isolada_conjunta">Isolada e/ou Conjunta</option>
+            <option value="conjunta">Conjunta</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerEl('satual-__IDX__')">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="nome" placeholder="Nome completo"></div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="cpf" placeholder="CPF" maxlength="14" oninput="mascaraCPF(this)"></div>
+      <div class="col-md-2"><input type="date" class="form-control form-control-sm" data-field="dataNascimento"></div>
+      <div class="col-md-1">
+        <select class="form-select form-select-sm" data-field="genero">
+          <option value="masculino">M</option><option value="feminino">F</option>
+        </select>
+      </div>
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="nacionalidade" placeholder="Nac." value="brasileira"></div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="profissao" placeholder="Profissão"></div>
+      <div class="col-md-2">
+        <select class="form-select form-select-sm" data-field="estadoCivil">
+          <option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option>
+          <option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option>
+        </select>
+      </div>
+      <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="end_cidade" placeholder="Cidade residência"></div>
+      <div class="col-md-2">
+        <select class="form-select form-select-sm" data-field="end_estado">
+          <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+        </select>
+      </div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="end_cep" placeholder="CEP" maxlength="9"></div>
+      <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="end_desc" placeholder="Logradouro"></div>
+      <div class="col-md-1"><input type="text" class="form-control form-control-sm" data-field="end_num" placeholder="Nº"></div>
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="end_bairro" placeholder="Bairro"></div>
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="doc_tipo_num" placeholder="RG/CNH nº"></div>
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="doc_orgao" placeholder="Órgão exp."></div>
+      <div class="col-md-2">
+        <input type="number" class="form-control form-control-sm" data-field="quantidadeCotas" placeholder="Cotas" min="0"
+               oninput="atualizarCapital()">
+      </div>
+      <div class="col-md-2">
+        <input type="number" class="form-control form-control-sm" data-field="valorUnitarioCota" placeholder="Val.unit R$" min="0.01" step="0.01" value="1">
+      </div>
+    </div>
+    <!-- Menor ou incapaz -->
+    <div class="mt-2 pt-1">
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" data-field="menorOuIncapaz"
+               id="menor_sa___IDX__" onchange="toggleRepresentante(this)">
+        <label class="form-check-label small text-warning fw-semibold" for="menor_sa___IDX__">
+          <i class="bi bi-exclamation-triangle me-1"></i>Menor ou legalmente incapaz
+        </label>
+      </div>
+    </div>
+    <div class="representante-container mt-2" style="display:none;">
+      <div class="alert alert-warning small py-2 mb-2">
+        <i class="bi bi-person-check me-1"></i>Dados do <strong>representante legal</strong>:
+      </div>
+      <div class="row g-2">
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_tipo"><option value="pai">Pai</option><option value="mae">Mãe</option><option value="tutor">Tutor(a)</option><option value="curador">Curador(a)</option></select></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="rep_nome" placeholder="Nome do representante"></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_cpf" placeholder="CPF" maxlength="14" oninput="mascaraCPF(this)"></div>
+        <div class="col-md-2"><input type="date" class="form-control form-control-sm" data-field="rep_dataNascimento"></div>
+        <div class="col-md-1"><select class="form-select form-select-sm" data-field="rep_genero"><option value="masculino">M</option><option value="feminino">F</option></select></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_nacionalidade" value="brasileira" placeholder="Nac."></div>
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_estadoCivil"><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_profissao" placeholder="Profissão"></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="rep_end_cidade" placeholder="Cidade do representante"></div>
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_end_estado"><option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option></select></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_end_desc" placeholder="Logradouro"></div>
+        <div class="col-md-1"><input type="text" class="form-control form-control-sm" data-field="rep_end_num" placeholder="Nº"></div>
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_doc_tipo_num" placeholder="RG/CNH nº rep."></div>
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_doc_orgao" placeholder="Órgão exp."></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Sócio Ingressante -->
+<template id="tpl-socio-novo">
+  <div class="socio-card border-success" id="snovo-__IDX__">
+    <!-- Leitura de documento -->
+    <div class="d-flex align-items-center gap-2 mb-3 p-2 bg-light rounded">
+      <label class="form-label mb-0 small fw-semibold">Ler documento (RG/CNH/PDF):</label>
+      <input type="file" class="form-control form-control-sm" style="max-width:260px;"
+             accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="lerDocumento(this,'snovo-__IDX__')">
+      <span class="doc-status small text-muted"></span>
+    </div>
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <h6 class="mb-0 fw-bold text-success"><i class="bi bi-person-plus me-1"></i>Sócio Ingressante <span class="num-sn">__NUM__</span></h6>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" data-field="administrador" id="adm_sn___IDX__">
+          <label class="form-check-label small" for="adm_sn___IDX__">Administrador</label>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerEl('snovo-__IDX__')"><i class="bi bi-x"></i></button>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-5"><label class="form-label required">Nome Completo</label>
+        <input type="text" class="form-control" data-field="nome" placeholder="NOME COMPLETO"></div>
+      <div class="col-md-3"><label class="form-label required">CPF</label>
+        <input type="text" class="form-control" data-field="cpf" placeholder="000.000.000-00" maxlength="14"
+               oninput="mascaraCPF(this)"></div>
+      <div class="col-md-2"><label class="form-label">Nascimento</label>
+        <input type="date" class="form-control" data-field="dataNascimento"></div>
+      <div class="col-md-2"><label class="form-label">Gênero</label>
+        <select class="form-select" data-field="genero"><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></div>
+      <div class="col-md-3"><label class="form-label">Nacionalidade</label>
+        <select class="form-select" data-field="nacionalidade">
+          <optgroup label="— Feminino —">
+            <option value="brasileira" selected>brasileira</option>
+            <option value="americana">americana</option><option value="argentina">argentina</option>
+            <option value="italiana">italiana</option><option value="espanhola">espanhola</option>
+            <option value="portuguesa">portuguesa</option><option value="alemã">alemã</option>
+            <option value="francesa">francesa</option><option value="japonesa">japonesa</option>
+            <option value="chinesa">chinesa</option><option value="uruguaia">uruguaia</option>
+            <option value="paraguaia">paraguaia</option>
+          </optgroup>
+          <optgroup label="— Masculino —">
+            <option value="brasileiro">brasileiro</option>
+            <option value="americano">americano</option><option value="argentino">argentino</option>
+            <option value="italiano">italiano</option><option value="espanhol">espanhol</option>
+            <option value="português">português</option><option value="alemão">alemão</option>
+            <option value="francês">francês</option><option value="japonês">japonês</option>
+            <option value="chinês">chinês</option><option value="uruguaio">uruguaio</option>
+            <option value="paraguaio">paraguaio</option>
+          </optgroup>
+        </select></div>
+      <div class="col-md-2"><label class="form-label">Estado Civil</label>
+        <select class="form-select" data-field="estadoCivil" onchange="toggleRegimeBensA(this)">
+          <option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option>
+          <option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option>
+        </select></div>
+      <div class="col-md-3 regime-bens-field" style="display:none;"><label class="form-label">Regime de Bens</label>
+        <select class="form-select" data-field="regimeBens">
+          <option value="comunhao_parcial">Comunhão Parcial</option>
+          <option value="comunhao_universal">Comunhão Universal</option>
+          <option value="separacao_total">Separação Total</option>
+        </select></div>
+      <div class="col-md-4"><label class="form-label required">Profissão</label>
+        <input type="text" class="form-control" data-field="profissao"></div>
+      <div class="col-md-2"><label class="form-label required">Cotas</label>
+        <input type="number" class="form-control" data-field="quantidadeCotas" min="1" oninput="atualizarCapital()"></div>
+      <div class="col-md-2"><label class="form-label">Valor Unit. (R$)</label>
+        <input type="number" class="form-control" data-field="valorUnitarioCota" min="0.01" step="0.01" value="1"></div>
+    </div>
+    <div class="section-title">Endereço Residencial</div>
+    <div class="row g-2">
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="end_cep"
+             placeholder="CEP" maxlength="9" oninput="mascaraCEP(this)"
+             onblur="buscarCEPSocioNovo(this, document.getElementById('snovo-__IDX__'))"></div>
+      <div class="col-md-2"><select class="form-select form-select-sm" data-field="end_tipo">
+        <option value="Rua">Rua</option><option value="Avenida">Av.</option>
+        <option value="Alameda">Al.</option><option value="Travessa">Trav.</option>
+      </select></div>
+      <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="end_desc" placeholder="Logradouro"></div>
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="end_num" placeholder="Nº"></div>
+      <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="end_compl" placeholder="Compl."></div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="end_bairro" placeholder="Bairro"></div>
+      <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="end_cidade" placeholder="Cidade"></div>
+      <div class="col-md-2">
+        <select class="form-select form-select-sm" data-field="end_estado">
+          <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-title">Documento de Identificação</div>
+    <div class="row g-2">
+      <div class="col-md-2"><select class="form-select form-select-sm" data-field="doc_tipo">
+        <option value="rg">RG</option><option value="cnh">CNH</option><option value="passaporte">Passaporte</option>
+      </select></div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="doc_numero" placeholder="Número"></div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="doc_orgao" placeholder="Órgão expedidor"></div>
+      <div class="col-md-2"><input type="date" class="form-control form-control-sm" data-field="doc_data"></div>
+    </div>
+    <!-- Menor ou incapaz -->
+    <div class="mt-3 pt-2 border-top">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" data-field="menorOuIncapaz"
+               id="menor_sn___IDX__" onchange="toggleRepresentante(this)">
+        <label class="form-check-label small text-warning fw-semibold" for="menor_sn___IDX__">
+          <i class="bi bi-exclamation-triangle me-1"></i>Menor de idade ou legalmente incapaz
+        </label>
+      </div>
+    </div>
+    <div class="representante-container mt-2" style="display:none;">
+      <div class="alert alert-warning small py-2 mb-2">
+        <i class="bi bi-person-check me-1"></i>Dados do <strong>representante legal</strong> (pai, mãe, tutor ou curador):
+      </div>
+      <div class="row g-3">
+        <div class="col-md-3"><label class="form-label small">Tipo</label>
+          <select class="form-select form-select-sm" data-field="rep_tipo"><option value="pai">Pai</option><option value="mae">Mãe</option><option value="tutor">Tutor(a)</option><option value="curador">Curador(a)</option></select></div>
+        <div class="col-md-5"><label class="form-label small">Nome</label>
+          <input type="text" class="form-control form-control-sm" data-field="rep_nome" placeholder="NOME DO REPRESENTANTE"></div>
+        <div class="col-md-4"><label class="form-label small">CPF</label>
+          <input type="text" class="form-control form-control-sm" data-field="rep_cpf" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCPF(this)"></div>
+        <div class="col-md-2"><label class="form-label small">Nascimento</label>
+          <input type="date" class="form-control form-control-sm" data-field="rep_dataNascimento"></div>
+        <div class="col-md-2"><label class="form-label small">Gênero</label>
+          <select class="form-select form-select-sm" data-field="rep_genero"><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></div>
+        <div class="col-md-3"><label class="form-label small">Nacionalidade</label>
+          <input type="text" class="form-control form-control-sm" data-field="rep_nacionalidade" value="brasileira"></div>
+        <div class="col-md-3"><label class="form-label small">Estado Civil</label>
+          <select class="form-select form-select-sm" data-field="rep_estadoCivil"><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select></div>
+        <div class="col-md-3"><label class="form-label small">Profissão</label>
+          <input type="text" class="form-control form-control-sm" data-field="rep_profissao" placeholder="profissão"></div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_end_cep" placeholder="CEP" maxlength="9" oninput="mascaraCEP(this)"></div>
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_end_tipo"><option value="Rua">Rua</option><option value="Avenida">Av.</option><option value="Alameda">Al.</option><option value="Travessa">Trav.</option></select></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="rep_end_desc" placeholder="Logradouro"></div>
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_end_num" placeholder="Nº"></div>
+        <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="rep_end_compl" placeholder="Compl."></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_end_bairro" placeholder="Bairro"></div>
+        <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="rep_end_cidade" placeholder="Cidade"></div>
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_end_estado"><option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR" selected>PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option></select></div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-2"><select class="form-select form-select-sm" data-field="rep_doc_tipo"><option value="rg">RG</option><option value="cnh">CNH</option><option value="passaporte">Passaporte</option></select></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_doc_numero" placeholder="Número doc."></div>
+        <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="rep_doc_orgao" placeholder="Órgão expedidor"></div>
+        <div class="col-md-2"><input type="date" class="form-control form-control-sm" data-field="rep_doc_data"></div>
+      </div>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================================
+// Estado global
+// ============================================================
+let idxSatual = 0, idxSnovo = 0, idxRet = 0, idxTransf = 0;
+let idxAtivAtual = 0, idxAtivNova = 0, idxOutra = 0;
+let cnaeList = [];
+let altAdmAtivo = false;
+
+const dadosIniciais      = {{ (ficha.empresa_atual | tojson) if ficha else 'null' }};
+const alteracoesIniciais = {{ (ficha.alteracoes    | tojson) if ficha else 'null' }};
+const fichaNumeroAlt     = {{ ficha.numero_alteracao if ficha and ficha.numero_alteracao else 0 }};
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('data_alteracao').value = new Date().toISOString().split('T')[0];
+  carregarCNAEs();
+  if (dadosIniciais) {
+    carregarDados(dadosIniciais, alteracoesIniciais);
+  } else {
+    adicionarAtivAtual();
+    adicionarSocioAtual();
+  }
+});
+
+// ============================================================
+// CNAE — lista IBGE
+// ============================================================
+function carregarCNAEs() {
+  const el = document.getElementById('cnae-loading');
+  if (el) el.style.display = '';
+  fetch('https://servicodados.ibge.gov.br/api/v2/cnae/subclasses')
+    .then(r => r.json())
+    .then(data => {
+      cnaeList = data.map(c => ({ id: c.id, descricao: c.descricao }));
+      if (el) el.style.display = 'none';
+    })
+    .catch(() => { if (el) el.textContent = 'CNAEs: insira manualmente.'; });
+}
+
+function filtrarCNAE(input) {
+  const card     = input.closest('.atividade-card');
+  const dropdown = card.querySelector('.cnae-dropdown');
+  const q        = input.value.trim().toLowerCase();
+  if (!q || q.length < 2 || !cnaeList.length) { dropdown.style.display = 'none'; return; }
+
+  const resultados = cnaeList.filter(c =>
+    c.id.toLowerCase().includes(q) || c.descricao.toLowerCase().includes(q)
+  ).slice(0, 30);
+
+  if (!resultados.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = '';
+  resultados.forEach(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'list-group-item list-group-item-action py-1 px-2 small';
+    btn.dataset.cnaeId   = c.id;
+    btn.dataset.cnaeDesc = c.descricao;
+    btn.innerHTML = `<span class="text-muted fw-semibold me-1">${c.id}</span>${c.descricao}`;
+    btn.addEventListener('click', () => selecionarCNAE(card, c.id, c.descricao));
+    dropdown.appendChild(btn);
+  });
+  dropdown.style.display = '';
+}
+
+function selecionarCNAE(card, id, descricao) {
+  setField(card, 'cnae', id);
+  setField(card, 'descricao', descricao);
+  const srch = card.querySelector('.cnae-search');
+  if (srch) srch.value = id;
+  card.querySelector('.cnae-dropdown').style.display = 'none';
+}
+
+// ============================================================
+// CEP
+// ============================================================
+async function buscarCEP(cep, prefixo) {
+  const c = cep.replace(/\D/g,'');
+  if (c.length !== 8) return;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${c}/json/`);
+    const d = await r.json();
+    if (d.erro) return;
+    const setId = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+    setId(prefixo+'_bairro', d.bairro);
+    setId(prefixo+'_cidade', d.localidade);
+    setId(prefixo+'_estado', d.uf);
+    // Tenta separar tipo + nome do logradouro
+    if (d.logradouro) {
+      const tipos = ['Rua','Avenida','Alameda','Travessa','Rodovia','Estrada','Praça','Largo'];
+      let tipo = 'Rua', desc = d.logradouro;
+      for (const t of tipos) {
+        if (d.logradouro.startsWith(t+' ')) { tipo = t; desc = d.logradouro.slice(t.length+1); break; }
+      }
+      setId(prefixo+'_tipo', tipo);
+      setId(prefixo+'_desc', desc);
+    }
+  } catch(e) {}
+}
+
+function buscarCEPAtual()  { buscarCEP(document.getElementById('end_cep').value,      'end'); }
+function buscarCEPNovo()   { buscarCEP(document.getElementById('novo_end_cep').value, 'novo_end'); }
+
+async function buscarCEPSocioNovo(input, card) {
+  const c = input.value.replace(/\D/g,'');
+  if (c.length !== 8) return;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${c}/json/`);
+    const d = await r.json();
+    if (d.erro) return;
+    const tipos = ['Rua','Avenida','Alameda','Travessa','Rodovia','Estrada','Praça','Largo'];
+    let tipo = 'Rua', desc = d.logradouro || '';
+    for (const t of tipos) {
+      if ((d.logradouro||'').startsWith(t+' ')) { tipo = t; desc = d.logradouro.slice(t.length+1); break; }
+    }
+    setField(card, 'end_tipo',   tipo);
+    setField(card, 'end_desc',   desc);
+    setField(card, 'end_bairro', d.bairro || '');
+    setField(card, 'end_cidade', d.localidade || '');
+    setField(card, 'end_estado', d.uf || 'PR');
+  } catch(e) {}
+}
+
+// ============================================================
+// Extração de DOCX via API
+// ============================================================
+async function extrairDocx() {
+  const input = document.getElementById('arquivo_contrato');
+  if (!input.files[0]) { alert('Selecione um arquivo .docx ou .pdf'); return; }
+  const status = document.getElementById('extracao_status');
+  const btn    = document.getElementById('btnExtrair');
+  status.style.display = '';
+  btn.disabled = true;
+  const fd = new FormData();
+  fd.append('arquivo', input.files[0]);
+  try {
+    const resp = await fetch('/api/extrair-contrato', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.erro) throw new Error(data.erro);
+    preencherEmpresaAtual(data);
+    if (data.numero_alteracao > 0) {
+      document.getElementById('numero_alteracao').value = data.numero_alteracao + 1;
+    }
+    document.getElementById('card-upload').style.display = 'none';
+    const modo  = data._modo === 'gpt' ? '✓ Extraído com IA' : '✓ Extraído localmente (revise os campos)';
+    const aviso = document.createElement('div');
+    aviso.className = 'alert alert-' + (data._modo === 'gpt' ? 'success' : 'warning') + ' alert-dismissible fade show';
+    aviso.innerHTML = modo + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+    document.querySelector('main').prepend(aviso);
+  } catch(e) { alert('Erro na extração: ' + e.message); }
+  finally { status.style.display = 'none'; btn.disabled = false; }
+}
+
+function preencherEmpresaAtual(dados) {
+  setById('razaoSocial',   dados.razaoSocial || '');
+  setById('cnpj',          dados.cnpj || '');
+  setById('nire',          dados.nire || '');
+  setById('objetoSocial',  dados.objetoSocial || '');
+  setById('classificacao', dados.classificacao || 'me');
+  setById('dataInicio',    dados.dataInicio || '');
+
+  const end = dados.enderecoComercial || {};
+  setById('end_cep',      end.cep || '');
+  setById('end_tipo',     end.logradouroTipo || 'Rua');
+  setById('end_desc',     end.logradouroDescricao || '');
+  setById('end_num',      end.numero || '');
+  setById('end_compl',    end.complemento || '');
+  setById('end_quadra',   end.quadra || '');
+  setById('end_lote',     end.lote || '');
+  setById('end_inscricao', end.inscricaoImobiliaria || '');
+  setById('end_bairro',   end.bairro || '');
+  setById('end_cidade',   end.cidade || '');
+  setById('end_estado',   end.estado || 'PR');
+
+  document.getElementById('atividades-atuais-container').innerHTML = '';
+  idxAtivAtual = 0;
+  (dados.atividades || []).forEach(a => adicionarAtivAtual(a));
+  if (!dados.atividades?.length) adicionarAtivAtual();
+
+  document.getElementById('socios-atuais-container').innerHTML = '';
+  idxSatual = 0;
+  (dados.socios || []).forEach(s => adicionarSocioAtual(s));
+  if (!dados.socios?.length) adicionarSocioAtual();
+
+  atualizarAdmSocios();
+}
+
+// ============================================================
+// Sócios Atuais
+// ============================================================
+function adicionarSocioAtual(dados) {
+  const idx = 'sa_' + (idxSatual++);
+  const tpl = document.getElementById('tpl-socio-atual');
+  const tempEl = document.createElement('div');
+  tempEl.innerHTML = tpl.innerHTML.replaceAll('__IDX__', idx).replaceAll('__NUM__', idxSatual);
+  const div = tempEl.firstElementChild;
+  document.getElementById('socios-atuais-container').appendChild(div);
+  if (dados) {
+    setField(div, 'nome',           dados.nome || '');
+    setField(div, 'cpf',            dados.cpf || '');
+    setField(div, 'dataNascimento', dados.dataNascimento || '');
+    setField(div, 'genero',         dados.genero || 'masculino');
+    setField(div, 'nacionalidade',  dados.nacionalidade || 'brasileira');
+    setField(div, 'estadoCivil',    dados.estadoCivil || 'solteiro');
+    setField(div, 'profissao',      dados.profissao || '');
+    setField(div, 'quantidadeCotas', dados.quantidadeCotas || '');
+    setField(div, 'valorUnitarioCota', dados.valorUnitarioCota || 1);
+    setField(div, 'administrador',  dados.administrador || false);
+    setField(div, 'tipoAdministracao', dados.tipoAdministracao || 'isolada');
+    const end = dados.endereco || {};
+    setField(div, 'end_cidade', end.cidade || '');
+    setField(div, 'end_estado', end.estado || 'PR');
+    setField(div, 'end_cep',    end.cep || '');
+    setField(div, 'end_desc',   end.logradouroDescricao || '');
+    setField(div, 'end_num',    end.numero || '');
+    setField(div, 'end_bairro', end.bairro || '');
+    const doc = dados.documentoIdentificacao || {};
+    const docStr = doc.numero ? ((doc.tipo||'RG').toUpperCase() + ' nº ' + doc.numero) : '';
+    setField(div, 'doc_tipo_num', docStr);
+    setField(div, 'doc_orgao', doc.orgaoExpedidor || '');
+    // Mostra tipo adm se admin
+    if (dados.administrador) {
+      const admTipoField = div.querySelector('.adm-tipo-field');
+      if (admTipoField) admTipoField.style.display = '';
+    }
+  }
+  atualizarCapital();
+  atualizarAdmSocios();
+}
+
+// ============================================================
+// Toggle admin nos sócios atuais (habilita/desabilita com alt_adm)
+// ============================================================
+// ============================================================
+// Verificação / Sugestão de Razão Social via IA
+// ============================================================
+function _coletarSociosRS() {
+  const socios = [];
+  document.querySelectorAll('#socios-atuais-container .socio-card, #socios-novos-container .socio-card').forEach(card => {
+    const n = card.querySelector('[data-field="nome"]')?.value?.trim();
+    if (n) socios.push({ nome: n });
+  });
+  return socios;
+}
+function _coletarAtivsRS() {
+  const ativs = [];
+  document.querySelectorAll('#atividades-atuais-container .atividade-card, #atividades-novas-container .atividade-card').forEach(card => {
+    const d = card.querySelector('[data-field="descricao"]')?.value?.trim();
+    if (d) ativs.push({ descricao: d });
+  });
+  return ativs;
+}
+async function verificarRazaoSocial() {
+  const nome = document.getElementById('nova_razao_social')?.value?.trim() ||
+               document.getElementById('razaoSocial')?.value?.trim();
+  if (!nome) { alert('Preencha a razão social antes de verificar.'); return; }
+  const btn = document.getElementById('btn-verificar-rs');
+  const statusEl = document.getElementById('rs-status');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  statusEl.style.display = '';
+  statusEl.innerHTML = '<span class="text-muted small">Verificando...</span>';
+  try {
+    const resp = await fetch('/api/verificar-razao-social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, socios: _coletarSociosRS(), atividades: _coletarAtivsRS(), modo: 'verificar', tipo_nome: document.querySelector('input[name="tipo_nome_alt"]:checked')?.value || 'denominacao' })
+    });
+    const data = await resp.json();
+    if (data.erro) throw new Error(data.erro);
+    const icon = data.ok ? '✅' : '❌';
+    const cls  = data.ok ? 'text-success' : 'text-danger';
+    let html = `<span class="${cls} small fw-semibold">${icon} ${data.mensagem}</span>`;
+    if (!data.ok && data.sugestoes?.length) {
+      html += `<div class="small text-muted mt-1">Sugestões: ` +
+        data.sugestoes.map(s => `<a href="#" onclick="aplicarSugestaoRS('${s.replace(/'/g,"\\'")}');return false;" class="me-2">${s}</a>`).join('') + `</div>`;
+    }
+    statusEl.innerHTML = html;
+  } catch(e) {
+    statusEl.innerHTML = `<span class="text-danger small">Erro: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-search me-1"></i>Verificar';
+  }
+}
+async function sugerirRazaoSocial() {
+  const btn = document.getElementById('btn-sugerir-rs');
+  const sugEl = document.getElementById('rs-sugestoes');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  sugEl.style.display = '';
+  sugEl.innerHTML = '<span class="text-muted small">Gerando sugestões...</span>';
+  try {
+    const resp = await fetch('/api/verificar-razao-social', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ socios: _coletarSociosRS(), atividades: _coletarAtivsRS(), modo: 'sugerir', tipo_nome: document.querySelector('input[name="tipo_nome_alt"]:checked')?.value || 'denominacao' })
+    });
+    const data = await resp.json();
+    if (data.erro) throw new Error(data.erro);
+    if (data.sugestoes?.length) {
+      sugEl.innerHTML = '<div class="small fw-semibold text-primary mb-1"><i class="bi bi-lightbulb me-1"></i>Sugestões:</div>' +
+        data.sugestoes.map(s =>
+          `<a href="#" onclick="aplicarSugestaoRS('${s.replace(/'/g,"\\'")}');return false;" class="badge bg-light text-dark border me-1 mb-1 text-decoration-none">${s}</a>`
+        ).join('');
+    } else {
+      sugEl.innerHTML = '<span class="text-muted small">Nenhuma sugestão retornada.</span>';
+    }
+  } catch(e) {
+    sugEl.innerHTML = `<span class="text-danger small">Erro: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-lightbulb me-1"></i>Sugerir';
+  }
+}
+function aplicarSugestaoRS(nome) {
+  const campo = document.getElementById('nova_razao_social') ||
+                document.getElementById('razaoSocial');
+  if (campo) { campo.value = nome; campo.focus(); }
+}
+
+function toggleAltAdm(checkbox) {
+  altAdmAtivo = checkbox.checked;
+  document.getElementById('sec-adm').style.display = checkbox.checked ? '' : 'none';
+  // Habilita/desabilita checkboxes de admin nos sócios atuais
+  document.querySelectorAll('#socios-atuais-container .adm-check').forEach(ck => {
+    ck.disabled = !altAdmAtivo;
+  });
+  document.querySelectorAll('#socios-atuais-container .adm-tipo-field select').forEach(sel => {
+    sel.disabled = !altAdmAtivo;
+  });
+  if (checkbox.checked) atualizarAdmSocios();
+}
+
+function atualizarAdmSocios() {
+  // Atualiza o painel de administração com sócios atuais + ingressantes + novos via retirada/transferência
+  const cont = document.getElementById('adm-socios-container');
+  if (!cont) return;
+  cont.innerHTML = '';
+  // Sócios atuais
+  document.querySelectorAll('#socios-atuais-container .socio-card').forEach((card, i) => {
+    const nome = getFieldVal(card, 'nome') || `Sócio ${i+1}`;
+    const isAdm = card.querySelector('[data-field="administrador"]')?.checked || false;
+    cont.innerHTML += `
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="adm_painel_a${i}" data-tipo="atual" data-idx="${i}"
+               ${isAdm ? 'checked' : ''}
+               onchange="sincronizarAdmSocio('atual',${i}, this.checked)">
+        <label class="form-check-label" for="adm_painel_a${i}">${nome || 'Sócio '+(i+1)}</label>
+      </div>`;
+  });
+  // Ingressantes via seção de ingresso
+  if (document.getElementById('alt_ingresso')?.checked) {
+    document.querySelectorAll('#socios-novos-container .socio-card').forEach((card, i) => {
+      const nome = getFieldVal(card, 'nome') || `Ingressante ${i+1}`;
+      const isAdm = card.querySelector('[data-field="administrador"]')?.checked || false;
+      cont.innerHTML += `
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="adm_painel_n${i}" data-tipo="novo" data-idx="${i}"
+                 ${isAdm ? 'checked' : ''}
+                 onchange="sincronizarAdmSocio('novo',${i}, this.checked)">
+          <label class="form-check-label text-success fw-semibold" for="adm_painel_n${i}">${nome} <small>(ingressante)</small></label>
+        </div>`;
+    });
+  }
+  // Novos sócios via retirada (destino_tipo = novo_socio)
+  document.querySelectorAll('#retirada-container .socio-card').forEach(retCard => {
+    const destTipo = getFieldVal(retCard, 'destino_tipo');
+    if (destTipo !== 'novo_socio') return;
+    const novoContainer = retCard.querySelector('.destino-novo-container');
+    if (!novoContainer) return;
+    const novoCard = novoContainer.querySelector('.socio-card');
+    if (!novoCard) return;
+    const nome = getFieldVal(novoCard, 'nome') || 'Novo sócio';
+    const isAdm = novoCard.querySelector('[data-field="administrador"]')?.checked || false;
+    const retId = retCard.id;
+    const uid = 'adm_painel_ret_' + retId;
+    cont.innerHTML += `
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="${uid}"
+               ${isAdm ? 'checked' : ''}
+               onchange="sincronizarAdmSocioEmbedded('${retId}','.destino-novo-container',this.checked)">
+        <label class="form-check-label text-danger fw-semibold" for="${uid}">${nome} <small>(ingressante via retirada)</small></label>
+      </div>`;
+  });
+  // Novos sócios via transferência (cessionario_tipo = novo)
+  document.querySelectorAll('#transferencia-container .atividade-card').forEach(trCard => {
+    const selTipo = trCard.querySelector('[data-field="cessionario_tipo"]');
+    if (!selTipo || selTipo.value !== 'novo') return;
+    const container = trCard.querySelector('.cessionario-novo-container');
+    if (!container) return;
+    const novoCard = container.querySelector('.socio-card');
+    if (!novoCard) return;
+    const nome = getFieldVal(novoCard, 'nome') || 'Novo cessionário';
+    const isAdm = novoCard.querySelector('[data-field="administrador"]')?.checked || false;
+    const trId = trCard.id;
+    const uid = 'adm_painel_tr_' + trId;
+    cont.innerHTML += `
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="${uid}"
+               ${isAdm ? 'checked' : ''}
+               onchange="sincronizarAdmSocioEmbedded('${trId}','.cessionario-novo-container',this.checked)">
+        <label class="form-check-label text-primary fw-semibold" for="${uid}">${nome} <small>(ingressante via transferência)</small></label>
+      </div>`;
+  });
+}
+
+function toggleRepresentante(checkbox) {
+  const card = checkbox.closest('.socio-card');
+  if (!card) return;
+  const rep = card.querySelector('.representante-container');
+  if (rep) rep.style.display = checkbox.checked ? '' : 'none';
+}
+
+function sincronizarAdmSocioEmbedded(cardId, containerSelector, checked) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  const container = card.querySelector(containerSelector);
+  if (!container) return;
+  const novoCard = container.querySelector('.socio-card');
+  if (!novoCard) return;
+  const ck = novoCard.querySelector('[data-field="administrador"]');
+  if (ck) ck.checked = checked;
+  const tipoField = novoCard.querySelector('.adm-tipo-field');
+  if (tipoField) tipoField.style.display = checked ? '' : 'none';
+}
+
+function sincronizarAdmSocio(tipo, idx, checked) {
+  const selector = tipo === 'atual' ? '#socios-atuais-container .socio-card' : '#socios-novos-container .socio-card';
+  const cards = document.querySelectorAll(selector);
+  if (cards[idx]) {
+    const ck = cards[idx].querySelector('[data-field="administrador"]');
+    if (ck) ck.checked = checked;
+    const tipoField = cards[idx].querySelector('.adm-tipo-field');
+    if (tipoField) tipoField.style.display = checked ? '' : 'none';
+  }
+}
+
+// ============================================================
+// Sócios Ingressantes
+// ============================================================
+function adicionarSocioNovo(dados) {
+  const num = idxSnovo++;
+  const idx = 'sn_' + num;
+  const tpl = document.getElementById('tpl-socio-novo');
+  const tempEl = document.createElement('div');
+  tempEl.innerHTML = tpl.innerHTML.replaceAll('__IDX__', idx).replaceAll('__NUM__', num+1);
+  const div = tempEl.firstElementChild;
+  document.getElementById('socios-novos-container').appendChild(div);
+  if (dados) {
+    setField(div, 'nome',            dados.nome || '');
+    setField(div, 'cpf',             dados.cpf || '');
+    setField(div, 'dataNascimento',  dados.dataNascimento || '');
+    setField(div, 'genero',          dados.genero || 'masculino');
+    setField(div, 'nacionalidade',   dados.nacionalidade || 'brasileira');
+    setField(div, 'estadoCivil',     dados.estadoCivil || 'solteiro');
+    setField(div, 'profissao',       dados.profissao || '');
+    setField(div, 'quantidadeCotas', dados.quantidadeCotas || '');
+    setField(div, 'valorUnitarioCota', dados.valorUnitarioCota || 1);
+    setField(div, 'administrador',   dados.administrador || false);
+    const end = dados.endereco || {};
+    setField(div, 'end_tipo',    end.logradouroTipo || 'Rua');
+    setField(div, 'end_desc',    end.logradouroDescricao || '');
+    setField(div, 'end_num',     end.numero || '');
+    setField(div, 'end_compl',   end.complemento || '');
+    setField(div, 'end_bairro',  end.bairro || '');
+    setField(div, 'end_cidade',  end.cidade || '');
+    setField(div, 'end_estado',  end.estado || 'PR');
+    setField(div, 'end_cep',     end.cep || '');
+    const doc = dados.documentoIdentificacao || {};
+    setField(div, 'doc_tipo',   doc.tipo || 'rg');
+    setField(div, 'doc_numero', doc.numero || '');
+    setField(div, 'doc_orgao',  doc.orgaoExpedidor || '');
+    setField(div, 'doc_data',   doc.dataExpedicao || '');
+  }
+  atualizarCapital();
+  // Atualiza painel de administração se estiver aberto
+  if (document.getElementById('alt_adm')?.checked) atualizarAdmSocios();
+}
+
+// ============================================================
+// Leitura de documento (sócios ingressantes)
+// ============================================================
+async function lerDocumento(input, cardId) {
+  const card   = document.getElementById(cardId);
+  const status = card.querySelector('.doc-status');
+  const file   = input.files[0];
+  if (!file) return;
+  status.textContent = 'Lendo...';
+  const fd = new FormData();
+  fd.append('arquivo', file);
+  try {
+    const resp = await fetch('/api/extrair-documento-socio', { method: 'POST', body: fd });
+    const d    = await resp.json();
+    if (d.erro) throw new Error(d.erro);
+    if (d.nome)             setField(card, 'nome',           d.nome);
+    if (d.cpf)              setField(card, 'cpf',            d.cpf);
+    if (d.dataNascimento)   setField(card, 'dataNascimento', d.dataNascimento);
+    if (d.doc_tipo)         setField(card, 'doc_tipo',       d.doc_tipo);
+    if (d.doc_numero)       setField(card, 'doc_numero',     d.doc_numero);
+    if (d.doc_orgaoExpedidor) setField(card, 'doc_orgao',    d.doc_orgaoExpedidor);
+    if (d.doc_dataExpedicao)  setField(card, 'doc_data',     d.doc_dataExpedicao);
+    status.textContent = '✓ Preenchido com IA';
+    status.className = 'doc-status small text-success';
+  } catch(e) {
+    status.textContent = '✗ ' + e.message;
+    status.className = 'doc-status small text-danger';
+  }
+  input.value = '';
+}
+
+// Versão para sócio atual: preenche doc_tipo_num, doc_orgao
+async function lerDocumentoAtual(input, cardId) {
+  const card   = document.getElementById(cardId);
+  const status = card.querySelector('.doc-status-atual');
+  const file   = input.files[0];
+  if (!file) return;
+  status.textContent = 'Lendo...';
+  const fd = new FormData();
+  fd.append('arquivo', file);
+  try {
+    const resp = await fetch('/api/extrair-documento-socio', { method: 'POST', body: fd });
+    const d    = await resp.json();
+    if (d.erro) throw new Error(d.erro);
+    if (d.nome)           setField(card, 'nome',           d.nome);
+    if (d.cpf)            setField(card, 'cpf',            d.cpf);
+    if (d.dataNascimento) setField(card, 'dataNascimento', d.dataNascimento);
+    if (d.doc_numero) {
+      const tipo = (d.doc_tipo || 'RG').toUpperCase();
+      setField(card, 'doc_tipo_num', `${tipo} nº ${d.doc_numero}`);
+    }
+    if (d.doc_orgaoExpedidor) setField(card, 'doc_orgao', d.doc_orgaoExpedidor);
+    status.textContent = '✓ Preenchido com IA';
+    status.className = 'doc-status-atual small text-success';
+  } catch(e) {
+    status.textContent = '✗ ' + e.message;
+    status.className = 'doc-status-atual small text-danger';
+  }
+  input.value = '';
+}
+
+// ============================================================
+// Retirada
+// ============================================================
+function adicionarRetirada(dados) {
+  const idx = 'ret_' + (idxRet++);
+  const div = document.createElement('div');
+  div.id = idx;
+  div.className = 'socio-card border-danger mb-2';
+
+  // Monta options dos sócios atuais (excluindo o próprio retirante por CPF)
+  let optExist = '<option value="">— Selecionar sócio —</option>';
+  document.querySelectorAll('#socios-atuais-container .socio-card').forEach(card => {
+    const nm  = getFieldVal(card, 'nome');
+    const cpf = getFieldVal(card, 'cpf');
+    if (nm && cpf !== (dados?.cpf || '')) optExist += `<option value="${nm}">${nm}</option>`;
+  });
+
+  div.innerHTML = `
+    <div class="d-flex justify-content-between mb-2">
+      <span class="fw-semibold text-danger small"><i class="bi bi-person-dash"></i> Sócio que se retira ${idxRet}</span>
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerElRet('${idx}')"><i class="bi bi-x"></i></button>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-5"><input type="text" class="form-control form-control-sm" data-field="nome" placeholder="Nome completo" value="${dados?.nome||''}"></div>
+      <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="cpf" placeholder="CPF" maxlength="14" value="${dados?.cpf||''}"></div>
+      <div class="col-md-2"><select class="form-select form-select-sm" data-field="genero">
+        <option value="masculino" ${(dados?.genero||'').startsWith('f')?'':'selected'}>Masc.</option>
+        <option value="feminino"  ${(dados?.genero||'').startsWith('f')?'selected':''}>Fem.</option>
+      </select></div>
+    </div>
+    <div class="mt-2 pt-2 border-top">
+      <label class="form-label small fw-semibold mb-1">As quotas serão vendidas para:</label>
+      <div class="row g-2 align-items-center">
+        <div class="col-md-5">
+          <select class="form-select form-select-sm" data-field="destino_tipo"
+                  onchange="toggleDestinoCotas(this,'${idx}')">
+            <option value="socios_remanescentes">Demais sócios remanescentes (sem comprador específico)</option>
+            <option value="socio_existente">Sócio já existente no quadro (remanescente específico)</option>
+            <option value="novo_socio">Novo sócio (ingressante) — preencha os dados do comprador</option>
+          </select>
+        </div>
+        <div class="col-md-5 destino-existente-field" style="display:none;">
+          <select class="form-select form-select-sm" data-field="destino_socio_existente">${optExist}</select>
+        </div>
+      </div>
+      <div class="destino-novo-container mt-2" style="display:none;"></div>
+    </div>`;
+  document.getElementById('retirada-container').appendChild(div);
+  if (dados?.genero) {
+    const sel = div.querySelector('[data-field="genero"]');
+    if (sel) sel.value = dados.genero;
+  }
+  return idx;
+}
+
+// ============================================================
+// Transferência de cotas
+// ============================================================
+function adicionarTransferencia(dados) {
+  const idx = 'tr_' + (idxTransf++);
+  const div = document.createElement('div');
+  div.id = idx;
+  div.className = 'atividade-card mb-2';
+
+  // Monta options dos sócios atuais
+  let optCedente = '<option value="">— Selecionar cedente —</option>';
+  document.querySelectorAll('#socios-atuais-container .socio-card').forEach(card => {
+    const nome = getFieldVal(card, 'nome');
+    if (nome) optCedente += `<option value="${nome}">${nome}</option>`;
+  });
+
+  div.innerHTML = `
+    <div class="d-flex justify-content-between mb-2">
+      <span class="fw-semibold small text-primary">Transferência ${idxTransf}</span>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="total" id="total_${idx}">
+          <label class="form-check-label small" for="total_${idx}">Total</label>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerEl('${idx}')"><i class="bi bi-x"></i></button>
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label small mb-0">Cedente (quem cede)</label>
+        <select class="form-select form-select-sm" data-field="cedente_nome">${optCedente}</select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Cotas</label>
+        <input type="number" class="form-control form-control-sm" data-field="cotas" placeholder="Qtd" min="1" value="${dados?.cotas||''}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Valor R$</label>
+        <input type="number" class="form-control form-control-sm" data-field="valor" placeholder="Valor" step="0.01" value="${dados?.valor||''}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-0">Comprador (cessionário)</label>
+        <div class="d-flex gap-1">
+          <select class="form-select form-select-sm" data-field="cessionario_tipo" onchange="toggleCessionario(this, '${idx}')">
+            <option value="existente">Sócio já existente no quadro (remanescente)</option>
+            <option value="novo">Novo sócio (ingressante) — preencha os dados</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-md-6 cessionario-existente" style="display:none;">
+        <label class="form-label small mb-0">Sócio existente</label>
+        <select class="form-select form-select-sm" data-field="cessionario_nome">${optCedente.replace('— Selecionar cedente —','— Selecionar cessionário —')}</select>
+      </div>
+    </div>
+    <div class="cessionario-novo mt-2" style="display:none;">
+      <div class="cessionario-novo-container"></div>
+    </div>`;
+  document.getElementById('transferencia-container').appendChild(div);
+  // Inicializa visibilidade do cessionário (padrão: existente)
+  const selTipo = div.querySelector('[data-field="cessionario_tipo"]');
+  if (selTipo) toggleCessionario(selTipo, idx);
+  if (dados?.cedente_nome) {
+    const sel = div.querySelector('[data-field="cedente_nome"]');
+    if (sel) sel.value = dados.cedente_nome || '';
+  }
+  if (dados?.cessionario_tipo) {
+    if (selTipo) { selTipo.value = dados.cessionario_tipo; toggleCessionario(selTipo, idx); }
+  }
+}
+
+function toggleCessionario(select, idx) {
+  const div = document.getElementById(idx);
+  if (!div) return;
+  const isExistente = select.value === 'existente';
+  div.querySelector('.cessionario-existente').style.display = isExistente ? '' : 'none';
+  const cesNovoWrap = div.querySelector('.cessionario-novo');
+  cesNovoWrap.style.display = isExistente ? 'none' : '';
+  if (!isExistente) {
+    const container = div.querySelector('.cessionario-novo-container');
+    if (container && container.children.length === 0) {
+      embedSocioNovo(container, 'ces_' + idx);
+    }
+  }
+  if (altAdmAtivo) atualizarAdmSocios();
+}
+
+// Inicializa o estado do cessionário ao criar (padrão: existente)
+function initCessionario(idx) {
+  const div = document.getElementById(idx);
+  if (!div) return;
+  const sel = div.querySelector('[data-field="cessionario_tipo"]');
+  if (sel) toggleCessionario(sel, idx);
+}
+
+// ============================================================
+// Atividades atuais (com CNAE search)
+// ============================================================
+function adicionarAtivAtual(dados) {
+  const idx = 'aa_' + (idxAtivAtual++);
+  const div = document.createElement('div');
+  div.id = idx;
+  div.className = 'atividade-card mb-2';
+  div.innerHTML = `
+    <div class="d-flex justify-content-between mb-1">
+      <span class="small text-muted fw-semibold">Atividade ${idxAtivAtual}</span>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="principal" ${dados?.principal?'checked':''} id="princ_aa_${idx}">
+          <label class="form-check-label small" for="princ_aa_${idx}">Principal</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="desenvolvidaNoLocal" ${dados?.desenvolvidaNoLocal!==false?'checked':''} id="local_aa_${idx}">
+          <label class="form-check-label small" for="local_aa_${idx}">No local</label>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerEl('${idx}')"><i class="bi bi-x"></i></button>
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-3 position-relative">
+        <input type="text" class="form-control form-control-sm cnae-search" data-field="cnae"
+               placeholder="Código CNAE..." autocomplete="off" oninput="filtrarCNAE(this)"
+               value="${dados?.cnae||''}">
+        <div class="cnae-dropdown list-group position-absolute shadow-sm"
+             style="display:none;z-index:1000;max-height:220px;overflow-y:auto;top:100%;left:0;min-width:480px;"></div>
+      </div>
+      <div class="col-md-9">
+        <input type="text" class="form-control form-control-sm" data-field="descricao"
+               placeholder="Descrição da atividade" value="${(dados?.descricao||'').replace(/"/g,'&quot;')}">
+      </div>
+    </div>`;
+  document.getElementById('atividades-atuais-container').appendChild(div);
+}
+
+// ============================================================
+// Atividades novas (seção objeto — com CNAE search)
+// ============================================================
+function adicionarAtivNova(dados) {
+  const idx = 'an_' + (idxAtivNova++);
+  const div = document.createElement('div');
+  div.id = idx;
+  div.className = 'atividade-card mb-2';
+  div.innerHTML = `
+    <div class="d-flex justify-content-between mb-1">
+      <span class="small text-muted">Atividade ${idxAtivNova}</span>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="principal" id="princ_an_${idx}">
+          <label class="form-check-label small" for="princ_an_${idx}">Principal</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" data-field="desenvolvidaNoLocal" checked id="local_an_${idx}">
+          <label class="form-check-label small" for="local_an_${idx}">No local</label>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removerEl('${idx}')"><i class="bi bi-x"></i></button>
+      </div>
+    </div>
+    <div class="row g-2">
+      <div class="col-md-3 position-relative">
+        <input type="text" class="form-control form-control-sm cnae-search" data-field="cnae"
+               placeholder="Código CNAE..." autocomplete="off" oninput="filtrarCNAE(this)"
+               value="${dados?.cnae||''}">
+        <div class="cnae-dropdown list-group position-absolute shadow-sm"
+             style="display:none;z-index:1000;max-height:220px;overflow-y:auto;top:100%;left:0;min-width:480px;"></div>
+      </div>
+      <div class="col-md-9">
+        <input type="text" class="form-control form-control-sm" data-field="descricao"
+               placeholder="Descrição da atividade" value="${(dados?.descricao||'').replace(/"/g,'&quot;')}">
+      </div>
+    </div>`;
+  document.getElementById('atividades-novas-container').appendChild(div);
+}
+
+// ============================================================
+// IA — Objeto Social
+// ============================================================
+async function gerarObjetoIA() {
+  const descricao = document.getElementById('ia-descricao-obj').value.trim();
+  if (!descricao) { alert('Descreva as atividades para a IA sugerir.'); return; }
+  const btn    = document.getElementById('btn-ia-objeto');
+  const status = document.getElementById('ia-obj-status');
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Gerando...';
+  status.style.display = ''; status.textContent = 'Consultando IA...';
+  try {
+    const resp = await fetch('/api/sugerir-objeto-cnae', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ descricao })
+    });
+    const d = await resp.json();
+    if (d.erro) throw new Error(d.erro);
+    if (d.objetoSocial) document.getElementById('novo_objeto').value = d.objetoSocial;
+    // Limpa e preenche atividades novas
+    document.getElementById('atividades-novas-container').innerHTML = '';
+    idxAtivNova = 0;
+    (d.cnaes || []).forEach(c => adicionarAtivNova(c));
+    if (!(d.cnaes||[]).length) adicionarAtivNova();
+    status.textContent = '✓ Objeto e CNAEs sugeridos pela IA.';
+  } catch(e) {
+    status.textContent = '✗ Erro: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="bi bi-magic me-1"></i>Sugerir com IA';
+  }
+}
+
+// ============================================================
+// Outras cláusulas
+// ============================================================
+function mostrarFonteClausula(tipo, btn) {
+  ['livre','banco','padrao','ia'].forEach(t => {
+    document.getElementById('fonte-'+t).style.display = t===tipo ? '' : 'none';
+  });
+  btn.closest('.btn-group').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function incluirClausulaLivre() {
+  const titulo = document.getElementById('nova-cl-titulo').value.trim();
+  const corpo  = document.getElementById('nova-cl-corpo').value.trim();
+  if (!corpo) { alert('Preencha o texto da cláusula.'); return; }
+  adicionarClausulaLista({ titulo: titulo || 'Cláusula adicional', corpo });
+  document.getElementById('nova-cl-titulo').value = '';
+  document.getElementById('nova-cl-corpo').value  = '';
+}
+
+function incluirClausulaDosBanco(id, titulo, corpo) {
+  adicionarClausulaLista({ titulo, corpo });
+}
+
+async function gerarClausulaIA() {
+  const descricao = document.getElementById('ia-cl-descricao').value.trim();
+  if (!descricao) { alert('Descreva a cláusula.'); return; }
+  const cont = document.getElementById('ia-cl-resultado');
+  cont.style.display = 'none';
+  try {
+    const resp = await fetch('/api/sugerir-clausula', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ descricao, contexto: document.getElementById('razaoSocial').value })
+    });
+    const d = await resp.json();
+    if (d.erro) throw new Error(d.erro);
+    document.getElementById('ia-cl-texto').value = d.clausula || '';
+    document.getElementById('ia-cl-titulo-res').value = descricao.substring(0,60);
+    cont.style.display = '';
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function incluirClausulaIA() {
+  const titulo = document.getElementById('ia-cl-titulo-res').value.trim();
+  const corpo  = document.getElementById('ia-cl-texto').value.trim();
+  if (!corpo) return;
+  adicionarClausulaLista({ titulo, corpo });
+  document.getElementById('ia-cl-resultado').style.display = 'none';
+  document.getElementById('ia-cl-descricao').value = '';
+}
+
+function incluirAlteracaoClausula() {
+  const sel    = document.getElementById('clausula-existente-sel');
+  const sub    = document.getElementById('clausula-existente-subtitulo').value.trim();
+  const corpo  = document.getElementById('clausula-existente-corpo').value.trim();
+  if (!sel.value || !corpo) { alert('Selecione a cláusula e informe a nova redação.'); return; }
+  const numRomano = sel.value === 'outro' ? (sub || 'CLÁUSULA ADICIONAL') : `CLÁUSULA ${sel.value}`;
+  const nomeCl    = sel.options[sel.selectedIndex].text.split('–')[1]?.trim() || '';
+  const titulo    = `${numRomano}${sub ? ' - '+sub : (nomeCl ? ' - '+nomeCl : '')}`;
+  adicionarClausulaLista({ titulo, corpo, tipo: 'substituicao' });
+  document.getElementById('clausula-existente-corpo').value = '';
+  document.getElementById('clausula-existente-subtitulo').value = '';
+}
+
+function adicionarClausulaLista(dados) {
+  const idx = 'oc_' + (idxOutra++);
+  const msgEl = document.getElementById('msg-sem-clausulas');
+  if (msgEl) msgEl.style.display = 'none';
+  const div = document.createElement('div');
+  div.id = idx;
+  div.className = 'card mb-2';
+  const tipoLabel = dados.tipo === 'substituicao'
+    ? '<span class="badge bg-warning text-dark me-1">Substituição</span>'
+    : '<span class="badge bg-primary me-1">Nova</span>';
+  div.innerHTML = `
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          ${tipoLabel}<strong class="small">${dados.titulo}</strong>
+          <p class="small text-muted mb-0 mt-1">${dados.corpo.substring(0,150)}${dados.corpo.length>150?'...':''}</p>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="removerEl('${idx}')">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+      <input type="hidden" class="cl-titulo" value="${dados.titulo.replace(/"/g,'&quot;')}">
+      <input type="hidden" class="cl-corpo" value="${dados.corpo.replace(/"/g,'&quot;')}">
+    </div>`;
+  document.getElementById('outras-clausulas-container').appendChild(div);
+}
+
+// ============================================================
+// Toggle seções
+// ============================================================
+function toggleSecao(id, checkbox) {
+  document.getElementById(id).style.display = checkbox.checked ? '' : 'none';
+  // Ao abrir objeto social, copia CNAEs atuais como ponto de partida
+  if (id === 'sec-objeto' && checkbox.checked) {
+    const cont = document.getElementById('atividades-novas-container');
+    if (cont && cont.children.length === 0) {
+      const ativsAtuais = coletarAtividades('atividades-atuais-container');
+      ativsAtuais.forEach(a => adicionarAtivNova(a));
+      if (!ativsAtuais.length) adicionarAtivNova();
+      const objAtual = document.getElementById('objetoSocial').value;
+      if (objAtual && !document.getElementById('novo_objeto').value)
+        document.getElementById('novo_objeto').value = objAtual;
+    }
+  }
+  // Ao abrir capital, popula com sócios atuais
+  if (id === 'sec-capital' && checkbox.checked) {
+    populateCapitalSection();
+  }
+  // Ao abrir retirada, popula checkboxes dos sócios atuais
+  if (id === 'sec-retirada' && checkbox.checked) {
+    populateRetiradaSection();
+  }
+}
+
+function toggleRegimeBensA(select) {
+  const cont  = select.closest('.socio-card');
+  const campo = cont?.querySelector('.regime-bens-field');
+  if (campo) campo.style.display = select.value === 'casado' ? '' : 'none';
+}
+
+// toggleOrigemCotas / preencherCedentesNoCard removidos — ingresso é sempre aumento de capital
+
+
+// ============================================================
+// Destino das quotas (retirada)
+// ============================================================
+function toggleDestinoCotas(select, retIdx) {
+  const card = document.getElementById(retIdx);
+  if (!card) return;
+  const existField    = card.querySelector('.destino-existente-field');
+  const novoContainer = card.querySelector('.destino-novo-container');
+
+  existField.style.display    = select.value === 'socio_existente' ? '' : 'none';
+  novoContainer.style.display = select.value === 'novo_socio'       ? '' : 'none';
+
+  if (select.value === 'socio_existente') {
+    const sel = existField.querySelector('[data-field="destino_socio_existente"]');
+    if (sel && sel.options.length <= 1) {
+      const cpfRet = getFieldVal(card, 'cpf');
+      document.querySelectorAll('#socios-atuais-container .socio-card').forEach(c => {
+        const nome = getFieldVal(c, 'nome');
+        const cpf  = getFieldVal(c, 'cpf');
+        if (nome && cpf !== cpfRet) sel.add(new Option(nome, nome));
+      });
+    }
+  }
+  if (select.value === 'novo_socio' && novoContainer.children.length === 0) {
+    embedSocioNovo(novoContainer, 'dest_' + retIdx);
+  }
+  if (altAdmAtivo) atualizarAdmSocios();
+}
+
+function removerElRet(id) {
+  // Desmarca o checkbox correspondente antes de remover o card
+  document.querySelectorAll('#retirada-socios-atuais .ret-socio-check').forEach(ck => {
+    if (ck.dataset.cardId === id) { ck.checked = false; delete ck.dataset.cardId; }
+  });
+  removerEl(id);
+}
+
+// ============================================================
+// Embed de sócio completo dentro de outro card (cessionário / destino novo)
+// ============================================================
+function embedSocioNovo(container, idx) {
+  const tpl = document.getElementById('tpl-socio-novo');
+  const tempEl = document.createElement('div');
+  tempEl.innerHTML = tpl.innerHTML.replaceAll('__IDX__', idx).replaceAll('__NUM__', '');
+  const div = tempEl.firstElementChild;
+  // Remove borda success e botão remover — está embutido
+  div.classList.remove('border-success');
+  div.classList.add('border-secondary', 'mt-2');
+  const removeBtn = div.querySelector('[onclick*="removerEl"]');
+  if (removeBtn) removeBtn.closest('.d-flex')?.querySelector('[onclick*="removerEl"]')?.remove();
+  container.appendChild(div);
+}
+
+// ============================================================
+// Coleta dados completos de um card de sócio (para novo destino/cessionário)
+// ============================================================
+function _coletarRepresentante(cont) {
+  if (!cont.querySelector('[data-field="menorOuIncapaz"]')?.checked) return null;
+  // Para tpl-socio-atual o doc está em rep_doc_tipo_num (campo combinado)
+  const repDocRaw = getFieldVal(cont, 'rep_doc_tipo_num') || '';
+  const repDocMatch = repDocRaw.match(/(\w+)\s*nº\s*(.+)/i);
+  return {
+    tipo:           getFieldVal(cont, 'rep_tipo') || 'pai',
+    nome:           getFieldVal(cont, 'rep_nome'),
+    cpf:            getFieldVal(cont, 'rep_cpf'),
+    dataNascimento: getFieldVal(cont, 'rep_dataNascimento'),
+    genero:         getFieldVal(cont, 'rep_genero') || 'masculino',
+    nacionalidade:  getFieldVal(cont, 'rep_nacionalidade') || 'brasileira',
+    estadoCivil:    getFieldVal(cont, 'rep_estadoCivil') || 'solteiro',
+    profissao:      getFieldVal(cont, 'rep_profissao'),
+    endereco: {
+      logradouroTipo:      getFieldVal(cont, 'rep_end_tipo') || 'Rua',
+      logradouroDescricao: getFieldVal(cont, 'rep_end_desc'),
+      numero:              getFieldVal(cont, 'rep_end_num'),
+      complemento:         getFieldVal(cont, 'rep_end_compl') || '',
+      bairro:              getFieldVal(cont, 'rep_end_bairro') || '',
+      cidade:              getFieldVal(cont, 'rep_end_cidade'),
+      estado:              getFieldVal(cont, 'rep_end_estado') || 'PR',
+      cep:                 getFieldVal(cont, 'rep_end_cep') || '',
+    },
+    documentoIdentificacao: {
+      tipo:           repDocMatch ? repDocMatch[1].toLowerCase() : (getFieldVal(cont, 'rep_doc_tipo') || 'rg'),
+      numero:         repDocMatch ? repDocMatch[2].trim() : (getFieldVal(cont, 'rep_doc_numero') || repDocRaw),
+      orgaoExpedidor: getFieldVal(cont, 'rep_doc_orgao'),
+      dataExpedicao:  getFieldVal(cont, 'rep_doc_data') || '',
+    },
+  };
+}
+
+function coletarSocioCard(cont) {
+  const doc = {
+    tipo: getFieldVal(cont, 'doc_tipo') || 'rg',
+    numero: getFieldVal(cont, 'doc_numero'),
+    orgaoExpedidor: getFieldVal(cont, 'doc_orgao'),
+    dataExpedicao: getFieldVal(cont, 'doc_data'),
+  };
+  return {
+    nome:            getFieldVal(cont, 'nome'),
+    cpf:             getFieldVal(cont, 'cpf'),
+    dataNascimento:  getFieldVal(cont, 'dataNascimento'),
+    genero:          getFieldVal(cont, 'genero') || 'masculino',
+    estadoCivil:     getFieldVal(cont, 'estadoCivil') || 'solteiro',
+    regimeBens:      getFieldVal(cont, 'regimeBens'),
+    profissao:       getFieldVal(cont, 'profissao'),
+    nacionalidade:   getFieldVal(cont, 'nacionalidade') || 'brasileira',
+    quantidadeCotas: parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0,
+    valorUnitarioCota: parseFloat(getFieldVal(cont, 'valorUnitarioCota')) || 1,
+    administrador:   cont.querySelector('[data-field="administrador"]')?.checked || false,
+    endereco: {
+      logradouroTipo:      getFieldVal(cont, 'end_tipo'),
+      logradouroDescricao: getFieldVal(cont, 'end_desc'),
+      numero:              getFieldVal(cont, 'end_num'),
+      complemento:         getFieldVal(cont, 'end_compl'),
+      bairro:              getFieldVal(cont, 'end_bairro'),
+      cidade:              getFieldVal(cont, 'end_cidade'),
+      estado:              getFieldVal(cont, 'end_estado') || 'PR',
+      cep:                 getFieldVal(cont, 'end_cep'),
+    },
+    documentoIdentificacao: doc,
+    menorOuIncapaz: cont.querySelector('[data-field="menorOuIncapaz"]')?.checked || false,
+    representante:  _coletarRepresentante(cont),
+  };
+}
+
+// ============================================================
+// Seção Capital Social — popula sócios atuais
+// ============================================================
+function populateCapitalSection() {
+  const cont = document.getElementById('capital-socios-container');
+  if (!cont) return;
+  // Só repopula se vazio (preserva edições feitas pelo usuário)
+  if (cont.children.length > 0) { atualizarCapitalResumo(); return; }
+  document.querySelectorAll('#socios-atuais-container .socio-card').forEach((card, i) => {
+    const nome  = getFieldVal(card, 'nome')             || `Sócio ${i+1}`;
+    const cpf   = getFieldVal(card, 'cpf')              || '';
+    const cotas = parseInt(getFieldVal(card, 'quantidadeCotas')) || 0;
+    const valor = parseFloat(getFieldVal(card, 'valorUnitarioCota')) || 1;
+    const row = document.createElement('div');
+    row.className = 'capital-socio-row row g-2 align-items-center mb-2 p-2 border rounded';
+    row.dataset.cpf  = cpf;
+    row.dataset.nome = nome;
+    row.innerHTML = `
+      <div class="col-md-4">
+        <span class="fw-semibold small">${nome}</span>
+        <div class="text-muted small">${cpf}</div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Cotas atuais</label>
+        <input type="number" class="form-control form-control-sm bg-light" value="${cotas}" readonly>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Novas cotas</label>
+        <input type="number" class="form-control form-control-sm novas-cotas-input"
+               min="0" value="${cotas}" oninput="atualizarCapitalResumo()"
+               placeholder="0 = retirada">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Valor unit. R$</label>
+        <input type="number" class="form-control form-control-sm valor-unit-input"
+               min="0.01" step="0.01" value="${valor.toFixed(2)}" oninput="atualizarCapitalResumo()">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0">Subtotal R$</label>
+        <input type="text" class="form-control form-control-sm bg-light subtotal-cap" readonly value="">
+      </div>
+      <div class="col-12 mt-2">
+        <div class="small text-muted fw-semibold mb-1">Integralização do aumento (informe apenas a diferença nova):</div>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label small mb-0">Moeda corrente R$</label>
+            <input type="number" class="form-control form-control-sm integ-moeda" min="0" step="0.01" placeholder="0,00" value="0">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-0">Bens Móveis R$</label>
+            <input type="number" class="form-control form-control-sm integ-bm-valor" min="0" step="0.01" placeholder="0,00" value="0">
+            <input type="text" class="form-control form-control-sm integ-bm-desc mt-1" placeholder="Descrição dos bens móveis">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-0">Bens Imóveis R$</label>
+            <input type="number" class="form-control form-control-sm integ-bi-valor" min="0" step="0.01" placeholder="0,00" value="0">
+            <input type="text" class="form-control form-control-sm integ-bi-desc mt-1" placeholder="Descrição do bem imóvel">
+          </div>
+        </div>
+      </div>`;
+    cont.appendChild(row);
+  });
+  atualizarCapitalResumo();
+}
+
+function atualizarCapitalResumo() {
+  let totalCapital = 0, totalCotas = 0;
+  document.querySelectorAll('#capital-socios-container .capital-socio-row').forEach(row => {
+    const novasCotas = parseInt(row.querySelector('.novas-cotas-input')?.value) || 0;
+    const valUnit    = parseFloat(row.querySelector('.valor-unit-input')?.value) || 1;
+    const sub        = novasCotas * valUnit;
+    totalCapital += sub;
+    totalCotas   += novasCotas;
+    const subEl = row.querySelector('.subtotal-cap');
+    if (subEl) subEl.value = sub.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  });
+  const resEl   = document.getElementById('capital-resultado');
+  const cotasEl = document.getElementById('capital-cotas-total');
+  if (resEl)   resEl.textContent = totalCapital.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (cotasEl) cotasEl.textContent = totalCotas;
+}
+
+function coletarCapitalSocios() {
+  const resultado = [];
+  document.querySelectorAll('#capital-socios-container .capital-socio-row').forEach(row => {
+    const moeda  = parseFloat(row.querySelector('.integ-moeda')?.value) || 0;
+    const bmVal  = parseFloat(row.querySelector('.integ-bm-valor')?.value) || 0;
+    const biVal  = parseFloat(row.querySelector('.integ-bi-valor')?.value) || 0;
+    const bmDesc = row.querySelector('.integ-bm-desc')?.value || '';
+    const biDesc = row.querySelector('.integ-bi-desc')?.value || '';
+    const integ_partes = [];
+    if (moeda > 0)  integ_partes.push({ tipo: 'moeda',        valor: moeda });
+    if (bmVal > 0)  integ_partes.push({ tipo: 'bens_moveis',  valor: bmVal, descricao: bmDesc });
+    if (biVal > 0)  integ_partes.push({ tipo: 'bens_imoveis', valor: biVal, descricao: biDesc });
+    resultado.push({
+      nome:           row.dataset.nome || '',
+      cpf:            row.dataset.cpf  || '',
+      novas_cotas:    parseInt(row.querySelector('.novas-cotas-input')?.value) || 0,
+      valor_unitario: parseFloat(row.querySelector('.valor-unit-input')?.value) || 1,
+      integ_partes,
+    });
+  });
+  return resultado;
+}
+
+// ============================================================
+// Seção Retirada — popula checkboxes dos sócios atuais
+// ============================================================
+function populateRetiradaSection() {
+  const cont = document.getElementById('retirada-socios-atuais');
+  if (!cont || cont.children.length > 0) return;
+  const socios = document.querySelectorAll('#socios-atuais-container .socio-card');
+  if (!socios.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'p-2 border rounded mb-2';
+  socios.forEach((card, i) => {
+    const nome = getFieldVal(card, 'nome') || `Sócio ${i+1}`;
+    const cpf  = getFieldVal(card, 'cpf')  || '';
+    const gen  = getFieldVal(card, 'genero') || 'masculino';
+    const id   = `ret_check_${i}`;
+    const row  = document.createElement('div');
+    row.className = 'form-check';
+    row.innerHTML = `
+      <input class="form-check-input ret-socio-check" type="checkbox" id="${id}"
+             data-nome="${nome.replace(/"/g,'&quot;')}"
+             data-cpf="${cpf}"
+             data-genero="${gen}"
+             onchange="onRetCheckChange(this)">
+      <label class="form-check-label" for="${id}">
+        <strong>${nome}</strong><span class="text-muted small ms-2">${cpf}</span>
+      </label>`;
+    wrap.appendChild(row);
+  });
+  cont.appendChild(wrap);
+}
+
+function onRetCheckChange(ck) {
+  if (ck.checked) {
+    const cardId = adicionarRetirada({ nome: ck.dataset.nome, cpf: ck.dataset.cpf, genero: ck.dataset.genero });
+    ck.dataset.cardId = cardId;
+  } else {
+    if (ck.dataset.cardId) { removerEl(ck.dataset.cardId); delete ck.dataset.cardId; }
+  }
+}
+
+// ============================================================
+// Capital total (informativo)
+// ============================================================
+function atualizarCapital() {
+  let total = 0;
+  document.querySelectorAll('#socios-atuais-container .socio-card, #socios-novos-container .socio-card').forEach(card => {
+    const q = parseInt(getFieldVal(card, 'quantidadeCotas')) || 0;
+    const v = parseFloat(getFieldVal(card, 'valorUnitarioCota')) || 1;
+    total += q * v;
+  });
+}
+
+// ============================================================
+// Carregar dados para edição
+// ============================================================
+function carregarDados(empresa, alteracoes) {
+  preencherEmpresaAtual(empresa);
+  setById('numero_alteracao', String(fichaNumeroAlt || 1));
+  if (!alteracoes) return;
+
+  if (alteracoes.nome_empresarial?.ativo) {
+    document.getElementById('alt_nome').checked = true;
+    toggleSecao('sec-nome', { checked: true });
+    setById('nova_razao_social', alteracoes.nome_empresarial.novo || '');
+  }
+  if (alteracoes.endereco?.ativo) {
+    document.getElementById('alt_endereco').checked = true;
+    toggleSecao('sec-endereco', {checked: true});
+    const n = alteracoes.endereco.novo || {};
+    setById('novo_end_cep',      n.cep || '');
+    setById('novo_end_tipo',     n.logradouroTipo || 'Rua');
+    setById('novo_end_desc',     n.logradouroDescricao || '');
+    setById('novo_end_num',      n.numero || '');
+    setById('novo_end_compl',    n.complemento || '');
+    setById('novo_end_quadra',   n.quadra || '');
+    setById('novo_end_lote',     n.lote || '');
+    setById('novo_end_inscricao', n.inscricaoImobiliaria || '');
+    setById('novo_end_bairro',   n.bairro || '');
+    setById('novo_end_cidade',   n.cidade || '');
+    setById('novo_end_estado',   n.estado || 'PR');
+    restaurarCheckboxGrupo('novo_end_tu_group', n.tipoUnidade || ['Unidade Produtiva', 'Sede']);
+    restaurarCheckboxGrupo('novo_end_fa_group', n.formaAtuacao || []);
+  }
+  if (alteracoes.capital_social?.ativo) {
+    document.getElementById('alt_capital').checked = true;
+    toggleSecao('sec-capital', {checked: true});
+    // Restaura as novas cotas por CPF/nome
+    (alteracoes.capital_social.socios || []).forEach(s => {
+      document.querySelectorAll('#capital-socios-container .capital-socio-row').forEach(row => {
+        if ((s.cpf && row.dataset.cpf === s.cpf) || row.dataset.nome === s.nome) {
+          const inp = row.querySelector('.novas-cotas-input');
+          const viu = row.querySelector('.valor-unit-input');
+          if (inp) inp.value = s.novas_cotas ?? inp.value;
+          if (viu) viu.value = s.valor_unitario ?? viu.value;
+        }
+      });
+    });
+    atualizarCapitalResumo();
+  }
+  (alteracoes.ingresso_socios || []).forEach(s => {
+    document.getElementById('alt_ingresso').checked = true;
+    toggleSecao('sec-ingresso', {checked: true});
+    adicionarSocioNovo(s);
+  });
+  (alteracoes.retirada_socios || []).forEach(s => {
+    document.getElementById('alt_retirada').checked = true;
+    toggleSecao('sec-retirada', {checked: true});
+    // Tenta marcar checkbox se for sócio atual, senão adiciona manualmente
+    let found = false;
+    document.querySelectorAll('#retirada-socios-atuais .ret-socio-check').forEach(ck => {
+      if (s.cpf && ck.dataset.cpf === s.cpf) { ck.checked = true; found = true; }
+    });
+    if (!found) adicionarRetirada(s);
+  });
+  (alteracoes.transferencia_cotas || []).forEach(t => {
+    document.getElementById('alt_cotas').checked = true;
+    toggleSecao('sec-cotas', {checked: true});
+    adicionarTransferencia(t);
+  });
+  if (alteracoes.administracao?.ativo) {
+    document.getElementById('alt_adm').checked = true;
+    toggleAltAdm({ checked: true });
+    setById('adm_tipo', alteracoes.administracao.tipoAdministracao || 'isolada');
+  }
+  if (alteracoes.objeto_social?.ativo) {
+    document.getElementById('alt_objeto').checked = true;
+    document.getElementById('sec-objeto').style.display = '';
+    setById('novo_objeto', alteracoes.objeto_social.novo || '');
+    (alteracoes.objeto_social.atividades || []).forEach(a => adicionarAtivNova(a));
+  }
+  (alteracoes.outras_clausulas || []).forEach(c => {
+    document.getElementById('alt_outras').checked = true;
+    toggleSecao('sec-outras', {checked: true});
+    adicionarClausulaLista(c);
+  });
+}
+
+// ============================================================
+// Coleta de dados
+// ============================================================
+function coletarSociosAtuais() {
+  const socios = [];
+  document.querySelectorAll('#socios-atuais-container .socio-card').forEach((cont, i) => {
+    const docRaw = getFieldVal(cont, 'doc_tipo_num') || '';
+    const docMatch = docRaw.match(/(\w+)\s*nº\s*(.+)/i);
+    socios.push({
+      id: 'sa_' + i,
+      nome:           getFieldVal(cont, 'nome'),
+      cpf:            getFieldVal(cont, 'cpf'),
+      dataNascimento: getFieldVal(cont, 'dataNascimento'),
+      genero:         getFieldVal(cont, 'genero'),
+      estadoCivil:    getFieldVal(cont, 'estadoCivil'),
+      regimeBens:     '',
+      profissao:      getFieldVal(cont, 'profissao'),
+      nacionalidade:  getFieldVal(cont, 'nacionalidade') || 'brasileira',
+      telefone:       '',
+      endereco: {
+        logradouroTipo:        'Rua',
+        logradouroDescricao:   getFieldVal(cont, 'end_desc'),
+        numero:                getFieldVal(cont, 'end_num'),
+        complemento:           '',
+        bairro:                getFieldVal(cont, 'end_bairro'),
+        cidade:                getFieldVal(cont, 'end_cidade'),
+        estado:                getFieldVal(cont, 'end_estado'),
+        cep:                   getFieldVal(cont, 'end_cep'),
+      },
+      documentoIdentificacao: {
+        tipo:           docMatch ? docMatch[1].toLowerCase() : 'rg',
+        numero:         docMatch ? docMatch[2].trim() : docRaw,
+        orgaoExpedidor: getFieldVal(cont, 'doc_orgao'),
+        dataExpedicao:  '',
+      },
+      quantidadeCotas:  parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0,
+      valorUnitarioCota: parseFloat(getFieldVal(cont, 'valorUnitarioCota')) || 1,
+      integralizacoes:  [{ tipo: 'moeda', valor: parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0, descricao: '' }],
+      administrador:    cont.querySelector('[data-field="administrador"]').checked,
+      tipoAdministracao: getFieldVal(cont, 'tipoAdministracao') || 'isolada',
+      menorOuIncapaz:   cont.querySelector('[data-field="menorOuIncapaz"]')?.checked || false,
+      representante:    _coletarRepresentante(cont),
+    });
+  });
+  return socios;
+}
+
+function coletarSociosNovos() {
+  const socios = [];
+  document.querySelectorAll('#socios-novos-container .socio-card').forEach((cont, i) => {
+    socios.push({
+      id: 'sn_' + i,
+      nome:           getFieldVal(cont, 'nome'),
+      cpf:            getFieldVal(cont, 'cpf'),
+      dataNascimento: getFieldVal(cont, 'dataNascimento'),
+      genero:         getFieldVal(cont, 'genero'),
+      estadoCivil:    getFieldVal(cont, 'estadoCivil'),
+      regimeBens:     getFieldVal(cont, 'regimeBens'),
+      profissao:      getFieldVal(cont, 'profissao'),
+      nacionalidade:  getFieldVal(cont, 'nacionalidade') || 'brasileira',
+      telefone:       '',
+      endereco: {
+        logradouroTipo:       getFieldVal(cont, 'end_tipo'),
+        logradouroDescricao:  getFieldVal(cont, 'end_desc'),
+        numero:               getFieldVal(cont, 'end_num'),
+        complemento:          getFieldVal(cont, 'end_compl'),
+        bairro:               getFieldVal(cont, 'end_bairro'),
+        cidade:               getFieldVal(cont, 'end_cidade'),
+        estado:               getFieldVal(cont, 'end_estado'),
+        cep:                  getFieldVal(cont, 'end_cep'),
+      },
+      documentoIdentificacao: {
+        tipo:           getFieldVal(cont, 'doc_tipo'),
+        numero:         getFieldVal(cont, 'doc_numero'),
+        orgaoExpedidor: getFieldVal(cont, 'doc_orgao'),
+        dataExpedicao:  getFieldVal(cont, 'doc_data'),
+      },
+      quantidadeCotas:   parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0,
+      valorUnitarioCota: parseFloat(getFieldVal(cont, 'valorUnitarioCota')) || 1,
+      integralizacoes:   [{ tipo: 'moeda', valor: parseInt(getFieldVal(cont, 'quantidadeCotas')) || 0, descricao: '' }],
+      administrador:     cont.querySelector('[data-field="administrador"]').checked,
+      tipoAdministracao: 'isolada',
+      menorOuIncapaz:    cont.querySelector('[data-field="menorOuIncapaz"]')?.checked || false,
+      representante:     _coletarRepresentante(cont),
+    });
+  });
+  return socios;
+}
+
+function coletarAtividades(containerId) {
+  const ativs = [];
+  document.querySelectorAll('#' + containerId + ' .atividade-card').forEach(cont => {
+    const princ = cont.querySelector('[data-field="principal"]');
+    const local = cont.querySelector('[data-field="desenvolvidaNoLocal"]');
+    ativs.push({
+      cnae:              getFieldVal(cont, 'cnae'),
+      descricao:         getFieldVal(cont, 'descricao'),
+      principal:         princ ? princ.checked : false,
+      desenvolvidaNoLocal: local ? local.checked : true,
+    });
+  });
+  return ativs;
+}
+
+// ============================================================
+// Submit
+// ============================================================
+document.getElementById('formAlteracao').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  const empresaAtual = {
+    razaoSocial:     document.getElementById('razaoSocial').value.trim(),
+    cnpj:            document.getElementById('cnpj').value.trim(),
+    nire:            document.getElementById('nire').value.trim(),
+    classificacao:   document.getElementById('classificacao').value,
+    objetoSocial:    document.getElementById('objetoSocial').value.trim(),
+    dataInicio:      document.getElementById('dataInicio').value.trim(),
+    capitalSocial:   0,
+    enderecoComercial: {
+      logradouroTipo:       document.getElementById('end_tipo').value,
+      logradouroDescricao:  document.getElementById('end_desc').value.trim(),
+      numero:               document.getElementById('end_num').value.trim(),
+      complemento:          document.getElementById('end_compl').value.trim(),
+      quadra:               document.getElementById('end_quadra').value.trim(),
+      lote:                 document.getElementById('end_lote').value.trim(),
+      inscricaoImobiliaria: document.getElementById('end_inscricao').value.trim(),
+      bairro:               document.getElementById('end_bairro').value.trim(),
+      cidade:               document.getElementById('end_cidade').value.trim(),
+      estado:               document.getElementById('end_estado').value,
+      cep:                  document.getElementById('end_cep').value.trim(),
+    },
+    atividades: coletarAtividades('atividades-atuais-container'),
+    socios:     coletarSociosAtuais(),
+  };
+  empresaAtual.capitalSocial = empresaAtual.socios.reduce((a,s) => a + (s.quantidadeCotas * (s.valorUnitarioCota||1)), 0);
+
+  // Retiradas — somente filhos diretos de retirada-container (evita capturar cards embutidos no destino)
+  const retiradas = [];
+  document.querySelectorAll('#retirada-container > .socio-card').forEach(cont => {
+    const destTipo = getFieldVal(cont, 'destino_tipo') || 'socios_remanescentes';
+    let destinoNovoSocio = null;
+    if (destTipo === 'novo_socio') {
+      const novoCard = cont.querySelector('.destino-novo-container .socio-card');
+      if (novoCard) destinoNovoSocio = coletarSocioCard(novoCard);
+    }
+    retiradas.push({
+      nome:   getFieldVal(cont, 'nome'),
+      cpf:    getFieldVal(cont, 'cpf'),
+      genero: getFieldVal(cont, 'genero'),
+      destino_tipo:             destTipo,
+      destino_socio_existente:  getFieldVal(cont, 'destino_socio_existente') || '',
+      destino_socio_novo:       destinoNovoSocio,
+    });
+  });
+
+  // Transferências
+  const transferencias = [];
+  document.querySelectorAll('#transferencia-container .atividade-card').forEach(cont => {
+    const totalChk  = cont.querySelector('[data-field="total"]');
+    const tipoSel   = cont.querySelector('[data-field="cessionario_tipo"]');
+    const cesExist  = cont.querySelector('[data-field="cessionario_nome"]');
+    const isExist   = tipoSel?.value === 'existente';
+    let cessionario = isExist ? (cesExist?.value||'') : '';
+    let cesNovoCard = null;
+    if (!isExist) {
+      const novoCardEl = cont.querySelector('.cessionario-novo-container .socio-card');
+      if (novoCardEl) cesNovoCard = coletarSocioCard(novoCardEl);
+      cessionario = cesNovoCard?.nome || '';
+    }
+    transferencias.push({
+      cedente_nome:      getFieldVal(cont, 'cedente_nome'),
+      cessionario_nome:  cessionario,
+      cessionario_tipo:  tipoSel?.value || 'existente',
+      cessionario_dados: cesNovoCard,
+      cotas:             parseInt(getFieldVal(cont, 'cotas')) || 0,
+      valor:             parseFloat(getFieldVal(cont, 'valor')) || 0,
+      total:             totalChk ? totalChk.checked : false,
+    });
+  });
+
+  // Outras cláusulas
+  const outrasCls = [];
+  document.querySelectorAll('#outras-clausulas-container .card').forEach(card => {
+    const titu = card.querySelector('.cl-titulo');
+    const corp = card.querySelector('.cl-corpo');
+    if (titu && corp) outrasCls.push({ titulo: titu.value, corpo: corp.value });
+  });
+
+  // Administradores — inclui sócios atuais E ingressantes marcados como admin
+  const altAdm = document.getElementById('alt_adm').checked;
+  const admsTodos = [
+    ...coletarSociosAtuais().filter(s => s.administrador),
+    ...coletarSociosNovos().filter(s => s.administrador),
+  ];
+
+  const dados = {
+    tipo: 'alteracao',
+    numero_alteracao: parseInt(document.getElementById('numero_alteracao').value) || 1,
+    data: document.getElementById('data_alteracao').value,
+    empresa_atual: empresaAtual,
+    alteracoes: {
+      nome_empresarial: document.getElementById('alt_nome').checked ? {
+        ativo: true,
+        novo: document.getElementById('nova_razao_social').value.trim(),
+      } : { ativo: false },
+      endereco: document.getElementById('alt_endereco').checked ? {
+        ativo: true,
+        novo: {
+          logradouroTipo:       document.getElementById('novo_end_tipo').value,
+          logradouroDescricao:  document.getElementById('novo_end_desc').value.trim(),
+          numero:               document.getElementById('novo_end_num').value.trim(),
+          complemento:          document.getElementById('novo_end_compl').value.trim(),
+          quadra:               document.getElementById('novo_end_quadra').value.trim(),
+          lote:                 document.getElementById('novo_end_lote').value.trim(),
+          inscricaoImobiliaria: document.getElementById('novo_end_inscricao').value.trim(),
+          bairro:               document.getElementById('novo_end_bairro').value.trim(),
+          cidade:               document.getElementById('novo_end_cidade').value.trim(),
+          estado:               document.getElementById('novo_end_estado').value,
+          cep:                  document.getElementById('novo_end_cep').value.trim(),
+          tipoUnidade:          coletarCheckboxGrupo('novo_end_tu_group'),
+          formaAtuacao:         coletarCheckboxGrupo('novo_end_fa_group'),
+        }
+      } : { ativo: false },
+      capital_social: document.getElementById('alt_capital').checked ? {
+        ativo: true,
+        socios: coletarCapitalSocios(),
+      } : { ativo: false },
+      ingresso_socios:    document.getElementById('alt_ingresso').checked ? coletarSociosNovos() : [],
+      retirada_socios:    document.getElementById('alt_retirada').checked ? retiradas : [],
+      transferencia_cotas: document.getElementById('alt_cotas').checked ? transferencias : [],
+      administracao: altAdm ? {
+        ativo: true,
+        tipoAdministracao: document.getElementById('adm_tipo').value,
+        administradores: admsTodos,
+      } : { ativo: false },
+      objeto_social: document.getElementById('alt_objeto').checked ? {
+        ativo: true,
+        novo: document.getElementById('novo_objeto').value.trim(),
+        atividades: coletarAtividades('atividades-novas-container'),
+      } : { ativo: false },
+      outras_clausulas: document.getElementById('alt_outras').checked ? outrasCls : [],
+    }
+  };
+
+  document.getElementById('dados_json').value = JSON.stringify(dados);
+  this.submit();
+});
+
+// ============================================================
+// Máscaras
+// ============================================================
+function mascaraCPF(input) {
+  let v = input.value.replace(/\D/g,'').substring(0,11);
+  if (v.length > 9) v = v.replace(/^(\d{3})(\d{3})(\d{3})(\d{0,2}).*/,'$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/^(\d{3})(\d{3})(\d{0,3}).*/,'$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/^(\d{3})(\d{0,3}).*/,'$1.$2');
+  input.value = v;
+}
+
+function mascaraCNPJ(input) {
+  let v = input.value.replace(/\D/g,'').substring(0,14);
+  if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2}).*/,'$1.$2.$3/$4-$5');
+  else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{0,4}).*/,'$1.$2.$3/$4');
+  else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d{0,3}).*/,'$1.$2.$3');
+  else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,3}).*/,'$1.$2');
+  input.value = v;
+}
+
+function mascaraCEP(input) {
+  let v = input.value.replace(/\D/g,'').substring(0,8);
+  if (v.length > 5) v = v.replace(/^(\d{5})(\d{0,3}).*/,'$1-$2');
+  input.value = v;
+}
+
+// ============================================================
+// Utilitários
+// ============================================================
+function removerEl(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function getFieldVal(container, field) {
+  const el = container.querySelector('[data-field="' + field + '"]');
+  if (!el) return '';
+  return el.tagName === 'TEXTAREA' ? el.value : (el.type === 'checkbox' ? el.checked : el.value);
+}
+
+function setField(container, field, value) {
+  const el = container.querySelector('[data-field="' + field + '"]');
+  if (!el) return;
+  if (el.type === 'checkbox') el.checked = !!value;
+  else el.value = value;
+}
+
+function coletarCheckboxGrupo(containerId) {
+  return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(e => e.value);
+}
+function restaurarCheckboxGrupo(containerId, valores) {
+  const vals = new Set(valores || []);
+  document.querySelectorAll(`#${containerId} input[type=checkbox]`).forEach(cb => {
+    cb.checked = vals.has(cb.value);
+  });
+}
+
+function setById(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+</script>
+{% endblock %}

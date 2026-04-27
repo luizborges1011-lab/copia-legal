@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Modelos de Contrato{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-file-text me-2"></i>Modelos de Contrato</h4>
+    <small class="text-muted">Edite os textos das cláusulas fixas usadas na geração de contratos</small>
+  </div>
+</div>
+
+<!-- Alerta de sucesso / erro -->
+<div id="alert-box" style="display:none;" class="alert alert-success alert-dismissible fade show">
+  <span id="alert-msg"></span>
+  <button type="button" class="btn-close" onclick="this.parentElement.style.display='none'"></button>
+</div>
+
+<!-- Tabs: LTDA vs Unipessoal vs Alteração -->
+<ul class="nav nav-tabs mb-4" id="modelosTabs" role="tablist">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-ltda" type="button">
+      <i class="bi bi-people me-1"></i> LTDA (2+ sócios)
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-uni" type="button">
+      <i class="bi bi-person me-1"></i> Unipessoal (1 sócio)
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-alt" type="button">
+      <i class="bi bi-pencil-square me-1"></i> Alteração Contratual
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-obs" type="button">
+      <i class="bi bi-info-circle me-1"></i> Referência
+    </button>
+  </li>
+</ul>
+
+{% macro render_clausulas(tipo) %}
+{% set filtradas = clausulas | selectattr("tipo_contrato", "in", [tipo, "ambos"]) | list %}
+{% for cl in filtradas | sort(attribute="codigo") %}
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center justify-content-between py-2">
+    <span class="fw-semibold small text-uppercase text-muted">{{ cl.codigo | upper }} — {{ tipo | upper }}</span>
+    <button type="button" class="btn btn-sm btn-primary"
+            onclick="salvarClausula('{{ cl.codigo }}', '{{ cl.tipo_contrato }}', this)">
+      <i class="bi bi-save2 me-1"></i> Salvar
+    </button>
+  </div>
+  <div class="card-body py-3">
+    <div class="mb-2">
+      <label class="form-label small fw-bold">Título</label>
+      <input type="text" class="form-control form-control-sm"
+             id="titulo_{{ cl.codigo }}_{{ cl.tipo_contrato }}"
+             value="{{ cl.titulo }}">
+    </div>
+    <div>
+      <label class="form-label small fw-bold">Texto da Cláusula</label>
+      <textarea class="form-control form-control-sm" rows="5"
+                id="corpo_{{ cl.codigo }}_{{ cl.tipo_contrato }}"
+                style="font-size:0.85rem; line-height:1.6;">{{ cl.corpo }}</textarea>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endmacro %}
+
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="tab-ltda">
+    <div class="alert alert-info py-2 small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Cláusulas marcadas como <strong>ambos</strong> são compartilhadas entre LTDA e Unipessoal.
+      Edite aqui para alterar em todos os contratos com 2+ sócios.
+    </div>
+    {{ render_clausulas("ltda") }}
+  </div>
+
+  <div class="tab-pane fade" id="tab-uni">
+    <div class="alert alert-info py-2 small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Texto específico para contratos com 1 sócio (Sociedade Limitada Unipessoal).
+    </div>
+    {{ render_clausulas("unipessoal") }}
+  </div>
+
+  <!-- TAB: ALTERAÇÃO CONTRATUAL -->
+  <div class="tab-pane fade" id="tab-alt">
+    <div class="alert alert-info py-2 small mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      Textos padrão usados na geração do instrumento de alteração contratual e do consolidado.
+      Use <code>{ESTADO}</code> onde o nome do estado deve aparecer no fecho.
+      Use <code>{MODO}</code> onde deve aparecer "ISOLADAMENTE" ou "EM CONJUNTO" na cláusula de administração.
+    </div>
+    {% set alt_cls = clausulas | selectattr("tipo_contrato", "equalto", "alteracao") | list %}
+    {% for cl in alt_cls | sort(attribute="codigo") %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center justify-content-between py-2">
+        <span class="fw-semibold small text-uppercase text-muted">{{ cl.codigo | upper }} — ALTERAÇÃO</span>
+        <button type="button" class="btn btn-sm btn-primary"
+                onclick="salvarClausula('{{ cl.codigo }}', '{{ cl.tipo_contrato }}', this)">
+          <i class="bi bi-save2 me-1"></i> Salvar
+        </button>
+      </div>
+      <div class="card-body py-3">
+        <div class="mb-2">
+          <label class="form-label small fw-bold">Título</label>
+          <input type="text" class="form-control form-control-sm"
+                 id="titulo_{{ cl.codigo }}_{{ cl.tipo_contrato }}"
+                 value="{{ cl.titulo }}">
+        </div>
+        <div>
+          <label class="form-label small fw-bold">Texto</label>
+          <textarea class="form-control form-control-sm" rows="5"
+                    id="corpo_{{ cl.codigo }}_{{ cl.tipo_contrato }}"
+                    style="font-size:0.85rem; line-height:1.6;">{{ cl.corpo }}</textarea>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning small">
+      Nenhum modelo de alteração encontrado. Reinicie o servidor para que os padrões sejam criados automaticamente.
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="tab-pane fade" id="tab-obs">
+    <div class="card">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">Como funciona a geração do contrato</h6>
+        <table class="table table-sm table-bordered">
+          <thead class="table-light">
+            <tr><th>Cláusula</th><th>Tipo</th><th>Fonte</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>I – Nome Empresarial</td><td><span class="badge bg-info text-dark">Dinâmica</span></td><td>Razão social da ficha</td></tr>
+            <tr><td>II – Sede</td><td><span class="badge bg-info text-dark">Dinâmica</span></td><td>Endereço comercial da ficha</td></tr>
+            <tr><td>III – Objeto Social</td><td><span class="badge bg-info text-dark">Dinâmica</span></td><td>Objeto + CNAEs da ficha</td></tr>
+            <tr><td>IV – Início / Prazo</td><td><span class="badge bg-info text-dark">Dinâmica</span></td><td>Data de cadastro</td></tr>
+            <tr><td>V – Capital</td><td><span class="badge bg-info text-dark">Dinâmica</span></td><td>Cotas e sócios</td></tr>
+            <tr><td>VI – Administração</td><td><span class="badge bg-warning text-dark">Semi-fixa</span></td><td>Texto padrão + nomes dos administradores</td></tr>
+            <tr><td>VII a XIV</td><td><span class="badge bg-primary">Editável</span></td><td>Este painel — salvo no banco de dados</td></tr>
+            <tr><td>Extras</td><td><span class="badge bg-success">Personalizada</span></td><td>Banco de cláusulas ou IA</td></tr>
+            <tr><td>Foro</td><td><span class="badge bg-info text-dark">Dinâmica</span></td><td>Cidade/Estado do endereço comercial</td></tr>
+          </tbody>
+        </table>
+        <p class="small text-muted mt-3">
+          <strong>Códigos das cláusulas:</strong>
+          vii, viii, ix, x_corpo, x_p1, x_p2, xi, xi_pu, xii, xiii, xiv_me.<br>
+          Tipo <code>ambos</code> = compartilhado entre LTDA e Unipessoal.
+          Tipo <code>ltda</code> ou <code>unipessoal</code> = texto específico para cada modalidade.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function salvarClausula(codigo, tipo, btn) {
+  const tituloEl = document.getElementById(`titulo_${codigo}_${tipo}`);
+  const corpoEl  = document.getElementById(`corpo_${codigo}_${tipo}`);
+  if (!tituloEl || !corpoEl) return;
+
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Salvando...';
+
+  fetch('/modelos/salvar', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      codigo,
+      tipo_contrato: tipo,
+      titulo: tituloEl.value,
+      corpo:  corpoEl.value
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      mostrarAlerta('Cláusula salva com sucesso!', 'success');
+      btn.innerHTML = '<i class="bi bi-check2 me-1"></i> Salvo';
+      setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 2000);
+    } else {
+      mostrarAlerta('Erro: ' + (d.erro || 'desconhecido'), 'danger');
+      btn.innerHTML = original; btn.disabled = false;
+    }
+  })
+  .catch(e => {
+    mostrarAlerta('Erro de comunicação.', 'danger');
+    btn.innerHTML = original; btn.disabled = false;
+  });
+}
+
+function mostrarAlerta(msg, tipo) {
+  const box = document.getElementById('alert-box');
+  box.className = `alert alert-${tipo} alert-dismissible fade show`;
+  document.getElementById('alert-msg').textContent = msg;
+  box.style.display = '';
+  setTimeout(() => { box.style.display = 'none'; }, 4000);
+}
+</script>
+{% endblock %}

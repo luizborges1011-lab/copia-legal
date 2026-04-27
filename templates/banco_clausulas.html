@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Banco de Cláusulas{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h4 class="mb-0 fw-bold">Banco de Cláusulas</h4>
+    <small class="text-muted">Cláusulas adicionais que podem ser incluídas nos contratos</small>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Formulário para nova cláusula -->
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Nova Cláusula</div>
+      <div class="card-body">
+        <form method="POST" action="/clausulas/salvar">
+          <div class="mb-3">
+            <label class="form-label required">Título da Cláusula</label>
+            <input type="text" name="titulo" class="form-control" required placeholder="Ex: DA CONFIDENCIALIDADE">
+          </div>
+          <div class="mb-3">
+            <label class="form-label required">Texto</label>
+            <textarea name="corpo" class="form-control" rows="6" required
+              placeholder="Os sócios se obrigam a manter sigilo sobre..."></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Aplicável a</label>
+            <select name="tipo_contrato" class="form-select">
+              <option value="todos">Todos os contratos</option>
+              <option value="ltda">LTDA (2+ sócios)</option>
+              <option value="ltda_unipessoal">LTDA Unipessoal</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-save"></i> Salvar Cláusula
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de cláusulas -->
+  <div class="col-md-7">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-journals me-2"></i>Cláusulas Cadastradas ({{ clausulas|length }})</div>
+      <div class="card-body p-0">
+        {% if clausulas %}
+        <div class="list-group list-group-flush">
+          {% for c in clausulas %}
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ c.titulo }}</div>
+                <div class="text-muted small mt-1" style="white-space:pre-wrap;">{{ c.corpo[:200] }}{% if c.corpo|length > 200 %}...{% endif %}</div>
+                <span class="badge bg-light text-secondary border mt-1 small">
+                  {% if c.tipo_contrato == 'todos' %}Todos os contratos
+                  {% elif c.tipo_contrato == 'ltda' %}LTDA
+                  {% else %}LTDA Unipessoal{% endif %}
+                </span>
+              </div>
+              <form method="POST" action="/clausulas/{{ c.id }}/excluir" class="ms-3">
+                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Remover esta cláusula?')">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-journals" style="font-size:3rem;"></i>
+          <p class="mt-2">Nenhuma cláusula cadastrada ainda.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

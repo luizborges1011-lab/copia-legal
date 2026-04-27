@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Gerar Contrato — {{ ficha.empresa.razaoSocial }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h4 class="mb-0 fw-bold">Gerar Contrato</h4>
+    <small class="text-muted">{{ ficha.empresa.razaoSocial|upper }}</small>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-7">
+    <!-- Cláusulas do banco -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <i class="bi bi-journals me-2"></i>Cláusulas Adicionais (opcional)
+      </div>
+      <div class="card-body">
+        {% if clausulas %}
+        <p class="text-muted small mb-3">Selecione cláusulas extras para incluir no contrato:</p>
+        {% for c in clausulas %}
+        <div class="form-check mb-2">
+          <input class="form-check-input clausula-check" type="checkbox" id="cl_{{ c.id }}" value="{{ c.id }}">
+          <label class="form-check-label" for="cl_{{ c.id }}">
+            <strong>{{ c.titulo }}</strong>
+            <span class="text-muted small d-block">{{ c.corpo[:100] }}{% if c.corpo|length > 100 %}...{% endif %}</span>
+          </label>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted small mb-0">
+          Nenhuma cláusula no banco.
+          <a href="/clausulas">Adicionar cláusulas</a> para poder incluí-las aqui.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Cláusula customizada via IA -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <i class="bi bi-stars me-2"></i>Gerar Cláusula com IA (GPT-4o mini)
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">Descreva o que quer e a IA vai redigir a cláusula.</p>
+        <div class="mb-2">
+          <input type="text" class="form-control" id="ia_descricao"
+            placeholder="Ex: cláusula de não concorrência por 2 anos">
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-dark" onclick="gerarClausulaIA()">
+          <i class="bi bi-magic"></i> Gerar com IA
+        </button>
+        <div id="ia_result" class="mt-3" style="display:none;">
+          <textarea class="form-control small" id="ia_texto" rows="5"></textarea>
+          <div class="mt-2 d-flex gap-2">
+            <input type="text" class="form-control form-control-sm" id="ia_titulo" placeholder="Título da cláusula">
+            <button class="btn btn-sm btn-success" onclick="adicionarClausulaIA()">
+              <i class="bi bi-plus"></i> Incluir no contrato
+            </button>
+          </div>
+        </div>
+        <div id="ia_error" class="text-danger small mt-2" style="display:none;"></div>
+        <div id="ia_loading" class="text-muted small mt-2" style="display:none;">Gerando...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-file-earmark-text me-2"></i>Resumo</div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><td class="text-muted">Empresa</td><td class="fw-semibold">{{ ficha.empresa.razaoSocial|upper }}</td></tr>
+          <tr><td class="text-muted">Tipo</td>
+              <td>{% if ficha.empresa.socios|length == 1 %}LTDA Unipessoal{% else %}LTDA{% endif %}</td></tr>
+          <tr><td class="text-muted">Sócios</td><td>{{ ficha.empresa.socios|length }}</td></tr>
+          <tr><td class="text-muted">Capital</td>
+              <td>R$ {{ "%.2f"|format(ficha.empresa.capitalSocial|float) }}</td></tr>
+          <tr><td class="text-muted">Sede</td>
+              <td>{{ ficha.empresa.enderecoComercial.cidade }} - {{ ficha.empresa.enderecoComercial.estado }}</td></tr>
+        </table>
+      </div>
+      <div class="card-footer">
+        <button class="btn btn-primary w-100" onclick="gerarContrato()">
+          <i class="bi bi-file-earmark-arrow-down"></i> Baixar Contrato (.docx)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cláusulas IA extras (oculto, para submit) -->
+<div id="clausulas-ia-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const fichaId = {{ ficha_id }};
+const clausulasIA = [];
+
+function gerarContrato() {
+  const checks = document.querySelectorAll('.clausula-check:checked');
+  const params = new URLSearchParams();
+  checks.forEach(c => params.append('clausula', c.value));
+  clausulasIA.forEach((c, i) => {
+    params.append('ia_titulo_' + i, c.titulo);
+    params.append('ia_corpo_' + i,  c.corpo);
+  });
+  window.location.href = `/constituicao/${fichaId}/gerar?${params.toString()}`;
+}
+
+async function gerarClausulaIA() {
+  const descricao = document.getElementById('ia_descricao').value.trim();
+  if (!descricao) { alert('Descreva a cláusula desejada.'); return; }
+
+  document.getElementById('ia_loading').style.display = '';
+  document.getElementById('ia_error').style.display = 'none';
+  document.getElementById('ia_result').style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/sugerir-clausula', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        descricao: descricao,
+        contexto: '{{ ficha.empresa.razaoSocial|e }} — {{ ficha.empresa.objetoSocial|e }}'
+      })
+    });
+    const data = await resp.json();
+    if (data.erro) throw new Error(data.erro);
+    document.getElementById('ia_texto').value = data.clausula;
+    document.getElementById('ia_titulo').value = descricao.toUpperCase();
+    document.getElementById('ia_result').style.display = '';
+  } catch(e) {
+    document.getElementById('ia_error').textContent = 'Erro: ' + e.message;
+    document.getElementById('ia_error').style.display = '';
+  } finally {
+    document.getElementById('ia_loading').style.display = 'none';
+  }
+}
+
+function adicionarClausulaIA() {
+  const titulo = document.getElementById('ia_titulo').value.trim();
+  const corpo  = document.getElementById('ia_texto').value.trim();
+  if (!titulo || !corpo) return;
+
+  clausulasIA.push({titulo, corpo});
+  const badge = document.createElement('div');
+  badge.className = 'alert alert-success alert-sm py-1 px-2 small mt-2';
+  badge.textContent = '✓ Cláusula "' + titulo + '" será incluída';
+  document.getElementById('ia_result').after(badge);
+
+  document.getElementById('ia_descricao').value = '';
+  document.getElementById('ia_result').style.display = 'none';
+}
+</script>
+{% endblock %}

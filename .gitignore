@@ -1,0 +1,43 @@
+# Banco de dados local
+contratos.db
+
+# Variáveis de ambiente
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Ambiente virtual
+venv/
+env/
+.venv/
+
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Uploads temporários
+uploads/
+
+# Contratos gerados e arquivos de teste
+*.docx
+*.pdf
+*.json
+
+# Pastas de manuais e modelos locais
+manuais/
+"manuais /"
+liberdade economica/
