@@ -35,7 +35,7 @@ from typing import BinaryIO, Iterator
 
 
 _local_uploads = Path(__file__).resolve().parent.parent / "uploads" / "leads"
-UPLOAD_ROOT = _local_uploads if os.access(str(_local_uploads.parent.parent), os.W_OK) else Path("/tmp/uploads/leads")
+UPLOAD_ROOT = Path("/tmp/uploads/leads") if os.environ.get("VERCEL") else _local_uploads
 
 
 def _safe_filename(name: str) -> str:

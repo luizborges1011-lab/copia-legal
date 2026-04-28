@@ -2,10 +2,10 @@ import sqlite3
 import json
 import os
 
-# Em produção serverless (Vercel), o diretório do projeto é read-only.
-# Usa /tmp quando não for possível gravar no diretório local.
-_local_db = os.path.join(os.path.dirname(__file__), "contratos.db")
-DB_PATH = _local_db if os.access(os.path.dirname(_local_db) or ".", os.W_OK) else "/tmp/contratos.db"
+# No Vercel (serverless), o diretório do projeto é read-only.
+# VERCEL=1 é injetado automaticamente pelo ambiente Vercel.
+_local_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contratos.db")
+DB_PATH = "/tmp/contratos.db" if os.environ.get("VERCEL") else _local_db
 
 
 def get_db():
