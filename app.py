@@ -26,7 +26,7 @@ import leads as leads_module
 from leads import db as leads_db
 
 app = Flask(__name__)
-app.secret_key = "contratos-societarios-2026"
+app.secret_key = os.environ.get("SECRET_KEY", "contratos-societarios-2026")
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
 
 import json as _json
@@ -43,6 +43,17 @@ def fromjson_filter(s):
 init_db()
 
 leads_module.register(app)
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    import traceback
+    tb = traceback.format_exc()
+    app.logger.error("Internal Server Error:\n%s", tb)
+    # Em Vercel: imprime no stderr para aparecer nos Runtime Logs do projeto
+    print("=== 500 ERROR ===", flush=True)
+    print(tb, flush=True)
+    return "Internal Server Error", 500
 
 
 @app.context_processor
