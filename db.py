@@ -2,10 +2,17 @@ import sqlite3
 import json
 import os
 
-# No Vercel (serverless), o diretório do projeto é read-only.
-# VERCEL=1 é injetado automaticamente pelo ambiente Vercel.
+# Resolução do caminho do banco:
+#   VERCEL=1  → /tmp/contratos.db  (filesystem serverless é read-only)
+#   DB_PATH   → caminho configurado via env (ex: volume persistente no Railway)
+#   padrão    → contratos.db ao lado do app.py (desenvolvimento local / Railway sem volume)
 _local_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contratos.db")
-DB_PATH = "/tmp/contratos.db" if os.environ.get("VERCEL") else _local_db
+if os.environ.get("VERCEL"):
+    DB_PATH = "/tmp/contratos.db"
+elif os.environ.get("DB_PATH"):
+    DB_PATH = os.environ["DB_PATH"]
+else:
+    DB_PATH = _local_db
 
 
 def get_db():

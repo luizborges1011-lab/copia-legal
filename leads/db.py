@@ -17,7 +17,12 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 _local_db = os.path.join(os.path.dirname(os.path.abspath(os.path.dirname(__file__))), "contratos.db")
-DB_PATH = "/tmp/contratos.db" if os.environ.get("VERCEL") else _local_db
+if os.environ.get("VERCEL"):
+    DB_PATH = "/tmp/contratos.db"
+elif os.environ.get("DB_PATH"):
+    DB_PATH = os.environ["DB_PATH"]
+else:
+    DB_PATH = _local_db
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
 
 
