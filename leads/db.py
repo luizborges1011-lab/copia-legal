@@ -199,6 +199,64 @@ def init_db() -> None:
             ON lead_state_manuals(state_code);
         """)
     _seed_defaults()
+    # Migration: fix default workflow if it has FINALIZAÇÃO (wrong structure from early deploy)
+    with db_cursor() as conn:
+        _default_wf = conn.execute(
+            "SELECT id FROM lead_workflows WHERE is_default=1 ORDER BY rowid LIMIT 1"
+        ).fetchone()
+        if _default_wf:
+            _wf_id = _default_wf[0]
+            _has_fin = conn.execute(
+                "SELECT COUNT(*) FROM lead_macrophases WHERE workflow_id=? AND name='FINALIZAÇÃO'",
+                (_wf_id,),
+            ).fetchone()[0]
+            if _has_fin:
+                conn.execute("DELETE FROM lead_stages     WHERE workflow_id=?", (_wf_id,))
+                conn.execute("DELETE FROM lead_macrophases WHERE workflow_id=?", (_wf_id,))
+                _mp_specs = [
+                    ("TRIAGEM E VIABILIDADE", 8, [
+                        ("Coleta de Informações",                    1),
+                        ("Elaboração de Ficha Interna e Contrato",   1),
+                        ("Em Aprovação com Cliente",                 3),
+                        ("Pedido de Viabilidade",                    1),
+                        ("Análise da Prefeitura",                    2),
+                    ]),
+                    ("PRODUÇÃO E APROVAÇÃO", 6, [
+                        ("Elaboração de Deferimento DBE",            1),
+                        ("Elaboração FCN",                           1),
+                        ("Conferência Interna",                      1),
+                        ("Assinatura do Cliente e Pagamento",        3),
+                    ]),
+                    ("TRÂMITE JUNTA", 3, [
+                        ("Protocolo na Junta Comercial",             3),
+                    ]),
+                    ("CADASTROS", 9, [
+                        ("Arquivo de Documentos/Pasta Clientes",     1),
+                        ("Cadastro Sistemas (contabit acessórias)",  2),
+                        ("Comunicado de Conclusão (grupo)",          1),
+                        ("Cadastro Receita/PR responder.",           5),
+                    ]),
+                    ("LICENÇAS E ALVARÁS", 30, [
+                        ("Inscrições Municipal",                     2),
+                        ("Pedido de Nota Fiscal",                    2),
+                        ("Liberação de Nota Fiscal",                 1),
+                        ("Alvará Municipal (se necessário)",         25),
+                    ]),
+                ]
+                _stage_pos = 0
+                for _mp_pos, (_mp_name, _mp_sla, _stages) in enumerate(_mp_specs):
+                    _mp_id = new_id()
+                    conn.execute(
+                        "INSERT INTO lead_macrophases (id,workflow_id,name,position,sla_days) VALUES (?,?,?,?,?)",
+                        (_mp_id, _wf_id, _mp_name, _mp_pos, _mp_sla),
+                    )
+                    for _st_name, _st_sla in _stages:
+                        conn.execute(
+                            "INSERT INTO lead_stages (id,workflow_id,macrophase_id,name,position,sla_days) "
+                            "VALUES (?,?,?,?,?,?)",
+                            (new_id(), _wf_id, _mp_id, _st_name, _stage_pos, _st_sla),
+                        )
+                        _stage_pos += 1
     # Recalculate deadlines for existing leads that are missing junta/nf dates
     with db_cursor() as conn:
         needs_recalc = conn.execute(
@@ -276,28 +334,33 @@ def _seed_defaults() -> None:
                 (wf_id, ab_id, "Padrão"),
             )
             mp_specs = [
-                ("TRIAGEM E VIABILIDADE", 15, [
-                    ("1. Coleta de Informações", 3),
-                    ("2. Pedido de Viabilidade", 5),
-                    ("3. Análise da Prefeitura", 7),
+                ("TRIAGEM E VIABILIDADE", 8, [
+                    ("Coleta de Informações",                1),
+                    ("Elaboração de Ficha Interna e Contrato", 1),
+                    ("Em Aprovação com Cliente",             3),
+                    ("Pedido de Viabilidade",                1),
+                    ("Análise da Prefeitura",                2),
                 ]),
-                ("PRODUÇÃO E APROVAÇÃO", 16, [
-                    ("4. Elaboração FCN e DBE", 3),
-                    ("5. Redação de Contrato", 3),
-                    ("6. Conferência Interna", 2),
-                    ("7. Validação e Pagamento", 3),
-                    ("8. Assinatura do Cliente", 5),
+                ("PRODUÇÃO E APROVAÇÃO", 6, [
+                    ("Elaboração de Deferimento DBE",        1),
+                    ("Elaboração FCN",                       1),
+                    ("Conferência Interna",                  1),
+                    ("Assinatura do Cliente e Pagamento",    3),
                 ]),
-                ("TRÂMITE JUNTA", 7, [
-                    ("9. Protocolo na Junta", 2),
-                    ("10. Em Exigência (Correções)", 5),
+                ("TRÂMITE JUNTA", 3, [
+                    ("Protocolo na Junta Comercial",         3),
                 ]),
-                ("FINALIZAÇÃO", 21, [
-                    ("11. Inscrições Fiscais", 5),
-                    ("12. Licenças e Alvarás", 10),
-                    ("13. Setup Contábil", 3),
-                    ("14. Arquivo de Documentos", 2),
-                    ("15. Comunicado de Conclusão", 1),
+                ("CADASTROS", 9, [
+                    ("Arquivo de Documentos/Pasta Clientes", 1),
+                    ("Cadastro Sistemas (contabit acessórias)", 2),
+                    ("Comunicado de Conclusão (grupo)",      1),
+                    ("Cadastro Receita/PR responder.",       5),
+                ]),
+                ("LICENÇAS E ALVARÁS", 30, [
+                    ("Inscrições Municipal",                 2),
+                    ("Pedido de Nota Fiscal",                2),
+                    ("Liberação de Nota Fiscal",             1),
+                    ("Alvará Municipal (se necessário)",     25),
                 ]),
             ]
             stage_pos = 0
