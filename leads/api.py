@@ -219,10 +219,16 @@ def modal_partial(lead_id):
 def patch_lead(lead_id):
     payload = request.get_json(silent=True) or {}
     actor = session.get("user_name") or "Sistema"
-    db.update_lead_fields(lead_id, payload, actor=actor)
+    try:
+        db.update_lead_fields(lead_id, payload, actor=actor)
+    except ValueError:
+        abort(404)
     if "tag_ids" in payload:
         db.set_lead_tags(lead_id, payload["tag_ids"] or [])
-    return jsonify(db.get_lead(lead_id))
+    lead = db.get_lead(lead_id)
+    if not lead:
+        abort(404)
+    return jsonify(lead)
 
 
 @leads_api_bp.route("/<lead_id>/move", methods=["POST"])

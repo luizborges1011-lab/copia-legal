@@ -257,6 +257,25 @@ def init_db() -> None:
                             (new_id(), _wf_id, _mp_id, _st_name, _stage_pos, _st_sla),
                         )
                         _stage_pos += 1
+    # Migration: fix leads with NULL current_stage_id (caused by stage deletion in workflow migration)
+    with db_cursor() as conn:
+        _null_stage_leads = conn.execute(
+            "SELECT id, workflow_id FROM leads WHERE current_stage_id IS NULL"
+        ).fetchall()
+    for _lead_row in _null_stage_leads:
+        _lid, _wid = _lead_row[0], _lead_row[1]
+        if not _wid:
+            continue
+        with db_cursor() as conn:
+            _first_st = conn.execute(
+                "SELECT id FROM lead_stages WHERE workflow_id=? ORDER BY position LIMIT 1",
+                (_wid,),
+            ).fetchone()
+            if _first_st:
+                conn.execute(
+                    "UPDATE leads SET current_stage_id=?, stage_entered_at=? WHERE id=?",
+                    (_first_st[0], now_iso(), _lid),
+                )
     # Recalculate deadlines for existing leads that are missing junta/nf dates
     with db_cursor() as conn:
         needs_recalc = conn.execute(
