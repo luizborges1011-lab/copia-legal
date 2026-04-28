@@ -50,10 +50,10 @@ def handle_500(e):
     import traceback
     tb = traceback.format_exc()
     app.logger.error("Internal Server Error:\n%s", tb)
-    # Em Vercel: imprime no stderr para aparecer nos Runtime Logs do projeto
     print("=== 500 ERROR ===", flush=True)
     print(tb, flush=True)
-    return "Internal Server Error", 500
+    # Mostra o traceback no browser para facilitar diagnóstico em produção
+    return f"<pre style='padding:2rem;font-size:13px'><b>500 Internal Server Error</b>\n\n{tb}</pre>", 500
 
 
 @app.context_processor
