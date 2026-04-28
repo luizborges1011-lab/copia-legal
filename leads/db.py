@@ -315,19 +315,70 @@ def _seed_defaults() -> None:
                     )
                     stage_pos += 1
 
-        # Garante que os tipos de órgão existam (Vigilância, Bombeiro, Conselho)
-        for _code, _name, _color in [
-            ("vigilancia", "Vigilância Sanitária", "#8b5cf6"),
-            ("bombeiro",   "Bombeiro",              "#ef4444"),
-            ("conselho",   "Conselho de Classe",    "#f59e0b"),
+        # Garante tipos de lead personalizados (sem workflow próprio)
+        for _tname, _tcolor in [
+            ("Abertura Empresa",                        "#10b981"),
+            ("Alteração Contratual (envolve endereço)", "#2456a4"),
+            ("Alteração Contratual (sem endereço)",     "#a8c6fe"),
+            ("Baixa Empresa",                           "#583400"),
+            ("Transformação LTDA-Meu",                  "#5c0700"),
+            ("Transformação MEI-LTDA",                  "#96d35f"),
         ]:
             if conn.execute(
-                "SELECT COUNT(*) FROM lead_types WHERE code=?", (_code,)
+                "SELECT COUNT(*) FROM lead_types WHERE name=?", (_tname,)
             ).fetchone()[0] == 0:
                 conn.execute(
-                    "INSERT INTO lead_types (id,name,color,active,code) VALUES (?,?,?,1,?)",
-                    (new_id(), _name, _color, _code),
+                    "INSERT INTO lead_types (id,name,color,active) VALUES (?,?,?,1)",
+                    (new_id(), _tname, _tcolor),
                 )
+
+        # Garante tipos de órgão com workflows e etapas (Vigilância, Bombeiro, Conselho)
+        _organ_stages_default = [
+            ("Protocolo do Pedido",               2),
+            ("Aguardando Resposta Órgão Público", 30),
+            ("Com Cliente para Ajustes",           7),
+            ("Reprotocolado",                      2),
+            ("Concluído",                          1),
+        ]
+        for _code, _name, _color in [
+            ("vigilancia", "Vigilância Sanitária", "#f59e0b"),
+            ("bombeiro",   "Bombeiro",              "#ef4444"),
+            ("conselho",   "Conselho de Classe",    "#3b82f6"),
+        ]:
+            _organ_row = conn.execute(
+                "SELECT id FROM lead_types WHERE code=?", (_code,)
+            ).fetchone()
+            if not _organ_row:
+                _organ_tid = new_id()
+                conn.execute(
+                    "INSERT INTO lead_types (id,name,color,active,code) VALUES (?,?,?,1,?)",
+                    (_organ_tid, _name, _color, _code),
+                )
+            else:
+                _organ_tid = _organ_row[0]
+            # Garante workflow do órgão
+            _organ_wf_row = conn.execute(
+                "SELECT id FROM lead_workflows WHERE lead_type_id=?", (_organ_tid,)
+            ).fetchone()
+            if not _organ_wf_row:
+                _organ_wf_id = new_id()
+                conn.execute(
+                    "INSERT INTO lead_workflows (id,lead_type_id,name,is_default) VALUES (?,?,?,1)",
+                    (_organ_wf_id, _organ_tid, "Padrão"),
+                )
+            else:
+                _organ_wf_id = _organ_wf_row[0]
+            # Garante etapas do órgão
+            if conn.execute(
+                "SELECT COUNT(*) FROM lead_stages WHERE workflow_id=?", (_organ_wf_id,)
+            ).fetchone()[0] == 0:
+                for _pos, (_st_name, _st_sla) in enumerate(_organ_stages_default):
+                    conn.execute(
+                        "INSERT INTO lead_stages "
+                        "(id,workflow_id,macrophase_id,name,position,sla_days) "
+                        "VALUES (?,?,NULL,?,?,?)",
+                        (new_id(), _organ_wf_id, _st_name, _pos, _st_sla),
+                    )
 
 
 # ---------------------------------------------------------------------------
