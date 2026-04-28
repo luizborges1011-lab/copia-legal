@@ -380,6 +380,34 @@ def _seed_defaults() -> None:
                         (new_id(), _organ_wf_id, _st_name, _pos, _st_sla),
                     )
 
+        # Garante escritórios (offices)
+        for _pos, (_oname, _ocolor) in enumerate([
+            ("ECM",     "#3b82f6"),
+            ("Avenida", "#2c1376"),
+            ("Conceito","#ffaa00"),
+            ("Aderson", "#f5ec00"),
+            ("CRL",     "#ff6a00"),
+        ]):
+            with db_cursor() as _oc:
+                if _oc.execute("SELECT COUNT(*) FROM lead_offices WHERE name=?", (_oname,)).fetchone()[0] == 0:
+                    _oc.execute(
+                        "INSERT INTO lead_offices (id,name,color,position) VALUES (?,?,?,?)",
+                        (new_id(), _oname, _ocolor, _pos),
+                    )
+
+        # Garante status personalizados
+        for _pos, (_sname, _scolor) in enumerate([
+            ("Aguardo Cliente",          "#3b82f6"),
+            ("Aguardando Órgão Público", "#ed719e"),
+            ("Aguardando Cliente",       "#f59e0b"),
+        ], start=10):
+            with db_cursor() as _sc:
+                if _sc.execute("SELECT COUNT(*) FROM lead_statuses WHERE name=?", (_sname,)).fetchone()[0] == 0:
+                    _sc.execute(
+                        "INSERT INTO lead_statuses (id,name,color,position) VALUES (?,?,?,?)",
+                        (new_id(), _sname, _scolor, _pos),
+                    )
+
 
 # ---------------------------------------------------------------------------
 # Deadline computation (CNPJ, Nota Fiscal, Total)

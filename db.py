@@ -283,6 +283,29 @@ def init_db():
             "VALUES (?, ?, ?, ?)",
             (codigo, tipo, titulo, corpo)
         )
+    # Seed FCN perguntas padrão
+    if conn.execute("SELECT COUNT(*) FROM configuracoes WHERE chave='fcn_perguntas'").fetchone()[0] == 0:
+        import json as _json
+        _fcn = [
+            {"id": "num_empregados",    "pergunta": "Número de empregados (incluindo sócios que trabalham na empresa)", "resposta": "colocar quantidade fornecedia pela empresa"},
+            {"id": "horario_func",      "pergunta": "Horário de funcionamento",                                         "resposta": "08:00 às 18:00, de segunda a sexta-feira"},
+            {"id": "area_total",        "pergunta": "Área total do estabelecimento (m²)",                               "resposta": "conforme fornecido pela empresa"},
+            {"id": "area_util",         "pergunta": "Área útil utilizada para a atividade (m²)",                        "resposta": "conforme fornecido pela empresa"},
+            {"id": "contato_responsavel","pergunta": "Nome e telefone do responsável para contato",                     "resposta": "conforme fornecido pela empresa"},
+            {"id": "email_contato",     "pergunta": "E-mail para contato da empresa",                                   "resposta": "conforme fornecido pela empresa"},
+            {"id": "inscricao_estadual","pergunta": "Possui inscrição estadual?",                                       "resposta": "Verificar"},
+            {"id": "inscricao_municipal","pergunta": "Possui inscrição municipal / alvará?",                            "resposta": "sim "},
+            {"id": "socios_exterior",   "pergunta": "Possui sócios residentes no exterior?",                            "resposta": "não"},
+            {"id": "tipo_imovel",       "pergunta": "O imóvel utilizado é próprio, alugado ou cedido?",                 "resposta": "verificar"},
+            {"id": "faturamento_previsto","pergunta": "Faturamento anual previsto (R$)",                                "resposta": "verificar "},
+            {"id": "possui_filial",     "pergunta": "Possui filial ou estabelecimento secundário?",                     "resposta": "não"},
+            {"id": "obs_gerais",        "pergunta": "Observações gerais / informações adicionais",                      "resposta": ""},
+        ]
+        conn.execute(
+            "INSERT INTO configuracoes (chave, valor) VALUES (?, ?)",
+            ("fcn_perguntas", _json.dumps(_fcn, ensure_ascii=False))
+        )
+
     conn.commit()
     conn.close()
 
