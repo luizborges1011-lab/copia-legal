@@ -820,10 +820,6 @@
           const data = await res.json();
           if (data.created && data.created.length > 0) {
             _showToast(`${data.created.length} cartão(ões) de órgão criado(s).`, 'success');
-            // Open new tabs for each created organ lead
-            data.created.forEach(c => {
-              window.open(`/leads/${c.id}`, '_blank');
-            });
           }
         } catch (e) {
           console.error(e);

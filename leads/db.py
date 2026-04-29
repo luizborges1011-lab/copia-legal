@@ -852,6 +852,11 @@ def link_ficha(lead_id: str, ficha_id: str) -> None:
 
 def delete_lead(lead_id: str) -> None:
     with db_cursor() as conn:
+        children = conn.execute(
+            "SELECT id FROM leads WHERE parent_lead_id=?", (lead_id,)
+        ).fetchall()
+        for child in children:
+            conn.execute("DELETE FROM leads WHERE id=?", (child["id"],))
         conn.execute("DELETE FROM leads WHERE id=?", (lead_id,))
 
 
