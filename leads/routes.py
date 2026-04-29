@@ -161,7 +161,8 @@ def painel():
     except (ValueError, TypeError):
         month, year = today.month, today.year
     month = max(1, min(12, month))
-    data = db.get_analytics_data(month, year)
+    responsavel = (request.args.get("responsavel") or "").strip() or None
+    data = db.get_analytics_data(month, year, responsavel=responsavel)
     months = [
         {"value": f"{m:02d}", "label": ["Jan","Fev","Mar","Abr","Mai","Jun",
                                          "Jul","Ago","Set","Out","Nov","Dez"][m-1]}
@@ -187,7 +188,8 @@ def painel_api():
         year  = int(request.args.get("ano", today.year))
     except (ValueError, TypeError):
         month, year = today.month, today.year
-    return jsonify(db.get_analytics_data(month, year))
+    responsavel = (request.args.get("responsavel") or "").strip() or None
+    return jsonify(db.get_analytics_data(month, year, responsavel=responsavel))
 
 
 @leads_bp.route("/<lead_id>/gerar-link-cliente", methods=["POST"])

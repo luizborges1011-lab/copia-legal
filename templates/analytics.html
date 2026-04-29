@@ -18,6 +18,17 @@
   .kpi-purple  { background: linear-gradient(135deg,#6d28d9,#8b5cf6); }
   .kpi-slate   { background: linear-gradient(135deg,#334155,#64748b); }
   .chart-box { background:#fff; border-radius:14px; padding:1.25rem; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+  .chart-canvas-wrap { position: relative; height: 240px; width: 100%; }
+  .old-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:.95rem 1.05rem; transition: all .15s ease; height:100%; display:flex; flex-direction:column; }
+  .old-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); border-color:#cbd5e1; }
+  .old-card .rank { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:#f1f5f9; color:#475569; font-weight:700; font-size:.78rem; }
+  .old-card .rank.r1 { background:#fef3c7; color:#b45309; }
+  .old-card .rank.r2 { background:#e2e8f0; color:#475569; }
+  .old-card .rank.r3 { background:#fde68a; color:#92400e; }
+  .old-card .days-badge { font-size:.72rem; font-weight:700; padding:.2rem .55rem; border-radius:20px; background:#fee2e2; color:#b91c1c; }
+  .old-card .days-badge.warn { background:#fef3c7; color:#b45309; }
+  .old-card .days-badge.ok { background:#e0e7ff; color:#3730a3; }
+  .filter-bar { background:#fff; padding:.75rem 1rem; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.04); }
   .attn-table th { font-size:.75rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; font-weight:600; border-top:none; }
   .attn-table td { font-size:.84rem; vertical-align:middle; }
   .badge-dias { font-size:.72rem; padding:.25em .55em; border-radius:20px; }
@@ -51,10 +62,25 @@
       <option value="{{ y }}" {% if y == sel_year %}selected{% endif %}>{{ y }}</option>
       {% endfor %}
     </select>
+    <select name="responsavel" class="form-select form-select-sm" style="width:200px" title="Filtrar por responsável">
+      <option value="">Todos os responsáveis</option>
+      {% for r in data.responsaveis_disponiveis %}
+      <option value="{{ r }}" {% if r == data.responsavel_selecionado %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
-    <a href="/leads/painel" class="btn btn-sm btn-outline-secondary">Hoje</a>
+    <a href="/leads/painel" class="btn btn-sm btn-outline-secondary">Limpar</a>
   </form>
 </div>
+{% if data.responsavel_selecionado %}
+<div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between" style="border-radius:10px;">
+  <span class="small">
+    <i class="bi bi-funnel-fill me-1"></i>
+    Filtrando por responsável: <strong>{{ data.responsavel_selecionado }}</strong>
+  </span>
+  <a href="/leads/painel?mes={{ '%02d'|format(sel_month) }}&ano={{ sel_year }}" class="btn btn-sm btn-link text-decoration-none p-0">Remover filtro</a>
+</div>
+{% endif %}
 
 <!-- ===== KPI Cards ===== -->
 <div class="row g-3 mb-3">
@@ -126,19 +152,19 @@
 <div class="row g-3 mb-3">
   <!-- Tendência 12 meses -->
   <div class="col-md-8">
-    <div class="chart-box h-100">
+    <div class="chart-box">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <span class="fw-semibold small">Tendência — últimos 12 meses</span>
         <span class="badge bg-light text-muted small">Abertos vs Concluídos</span>
       </div>
-      <canvas id="chartTrend" height="90"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="chartTrend"></canvas></div>
     </div>
   </div>
   <!-- Por tipo -->
   <div class="col-md-4">
-    <div class="chart-box h-100">
+    <div class="chart-box">
       <div class="fw-semibold small mb-3">Distribuição por Tipo</div>
-      <canvas id="chartTipo" height="170"></canvas>
+      <div class="chart-canvas-wrap" style="height:200px;"><canvas id="chartTipo"></canvas></div>
       <div id="legendTipo" class="mt-2"></div>
     </div>
   </div>
@@ -147,19 +173,53 @@
 <div class="row g-3 mb-3">
   <!-- Por macrofase -->
   <div class="col-md-6">
-    <div class="chart-box h-100">
+    <div class="chart-box">
       <div class="fw-semibold small mb-3">Processos ativos por Macrofase</div>
-      <canvas id="chartMacro" height="120"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="chartMacro"></canvas></div>
     </div>
   </div>
   <!-- Por responsável -->
   <div class="col-md-6">
-    <div class="chart-box h-100">
+    <div class="chart-box">
       <div class="fw-semibold small mb-3">Processos ativos por Responsável</div>
-      <canvas id="chartResp" height="120"></canvas>
+      <div class="chart-canvas-wrap"><canvas id="chartResp"></canvas></div>
     </div>
   </div>
 </div>
+
+<!-- ===== Top 5 Mais Antigos (Cards) ===== -->
+{% if data.mais_antigos_list %}
+<div class="section-head"><i class="bi bi-hourglass-bottom me-1"></i>Top 5 processos mais antigos em andamento</div>
+<div class="row g-3 mb-3">
+  {% for l in data.mais_antigos_list[:5] %}
+  <div class="col-md-6 col-xl">
+    <a href="/leads/{{ l.id }}" class="text-decoration-none text-dark">
+      <div class="old-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <span class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">#{{ loop.index }}</span>
+          <span class="days-badge {% if l.dias_aberto > 90 %}{% elif l.dias_aberto > 45 %}warn{% else %}ok{% endif %}">{{ l.dias_aberto }} dias</span>
+        </div>
+        <div class="fw-bold small mb-1" style="line-height:1.3;min-height:2.6em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ l.name }}</div>
+        <div class="mb-2">
+          <span class="badge" style="background:{{ l.type_color }};font-size:.68rem;">{{ l.type_name }}</span>
+        </div>
+        <div class="text-muted mb-1" style="font-size:.72rem;">
+          <i class="bi bi-diagram-3 me-1"></i>{{ l.macrophase_name or '—' }}
+        </div>
+        <div class="small text-muted mb-1" style="font-size:.74rem;">
+          <i class="bi bi-flag me-1"></i>{{ l.stage_name or '—' }}
+        </div>
+        <div class="mt-auto pt-2 d-flex justify-content-between align-items-center" style="border-top:1px solid #f1f5f9;font-size:.72rem;">
+          <span class="text-muted"><i class="bi bi-person me-1"></i>{{ l.responsible_name or 'Não atribuído' }}</span>
+          {% set pcol = {'Urgente':'#ef4444','Alta':'#f59e0b','Normal':'#3b82f6','Baixa':'#94a3b8'} %}
+          <span class="priority-tag" style="background:{{ pcol.get(l.priority,'#94a3b8') }};width:8px;height:8px;display:inline-block;border-radius:50%;"></span>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 <!-- ===== Seção de Atenção ===== -->
 <div class="section-head"><i class="bi bi-exclamation-circle me-1"></i>Requer atenção imediata</div>
@@ -471,7 +531,7 @@ new Chart(document.getElementById('chartTrend'), {
     ]
   },
   options: {
-    responsive: true, maintainAspectRatio: true,
+    responsive: true, maintainAspectRatio: false, animation: false,
     plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 10 } } },
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
   }
@@ -489,7 +549,7 @@ if (byTipo.length > 0) {
         borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       cutout: '65%',
       plugins: {
         legend: { display: false },
@@ -537,7 +597,7 @@ if (byResp.length > 0) {
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { position: 'top', labels: { boxWidth: 10, padding: 8 } } },
       scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { stepSize: 1 } } }
     }

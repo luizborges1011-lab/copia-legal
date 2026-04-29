@@ -1568,8 +1568,8 @@ def mark_all_notifications_read(user_id: str) -> None:
 # Analytics Dashboard
 # ---------------------------------------------------------------------------
 
-def get_analytics_data(month: int, year: int) -> dict:
-    """Returns complete analytics data for the given month/year."""
+def get_analytics_data(month: int, year: int, responsavel: Optional[str] = None) -> dict:
+    """Returns complete analytics data for the given month/year, optionally filtered by responsible."""
     import datetime as _dt
     today = _dt.date.today()
     today_str = today.isoformat()
@@ -1586,6 +1586,14 @@ def get_analytics_data(month: int, year: int) -> dict:
     prev_end = month_start
 
     ROOT = "(l.parent_lead_id IS NULL OR l.parent_lead_id = '')"
+    resp_args: tuple = ()
+    join_lh = ""
+    where_lh = ""
+    if responsavel:
+        ROOT = ROOT + " AND l.responsible_name = ?"
+        resp_args = (responsavel,)
+        join_lh = "JOIN leads l ON l.id = lh.lead_id"
+        where_lh = "AND l.responsible_name = ?"
 
     with db_cursor() as conn:
         def q(sql, params=()):
@@ -1593,69 +1601,77 @@ def get_analytics_data(month: int, year: int) -> dict:
 
         created_mes = q(
             f"SELECT COUNT(*) FROM leads l WHERE l.created_at >= ? AND l.created_at < ? AND {ROOT}",
-            (month_start, month_end)
+            (month_start, month_end) + resp_args
         )[0][0]
 
         created_prev = q(
             f"SELECT COUNT(*) FROM leads l WHERE l.created_at >= ? AND l.created_at < ? AND {ROOT}",
-            (prev_start, prev_end)
+            (prev_start, prev_end) + resp_args
         )[0][0]
 
         finalizados_mes = q(
-            """SELECT COUNT(DISTINCT lead_id) FROM lead_history
-               WHERE field='status' AND new_value='Concluído'
-               AND created_at >= ? AND created_at < ?""",
-            (month_start, month_end)
+            f"""SELECT COUNT(DISTINCT lh.lead_id) FROM lead_history lh
+               {join_lh}
+               WHERE lh.field='status' AND lh.new_value='Concluído'
+               AND lh.created_at >= ? AND lh.created_at < ?
+               {where_lh}""",
+            (month_start, month_end) + resp_args
         )[0][0]
 
         finalizados_prev = q(
-            """SELECT COUNT(DISTINCT lead_id) FROM lead_history
-               WHERE field='status' AND new_value='Concluído'
-               AND created_at >= ? AND created_at < ?""",
-            (prev_start, prev_end)
+            f"""SELECT COUNT(DISTINCT lh.lead_id) FROM lead_history lh
+               {join_lh}
+               WHERE lh.field='status' AND lh.new_value='Concluído'
+               AND lh.created_at >= ? AND lh.created_at < ?
+               {where_lh}""",
+            (prev_start, prev_end) + resp_args
         )[0][0]
 
         total_ativos = q(
             f"""SELECT COUNT(*) FROM leads l
-               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}"""
+               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}""",
+            resp_args
         )[0][0]
 
         total_concluidos_all = q(
-            f"SELECT COUNT(*) FROM leads l WHERE l.status='Concluído' AND {ROOT}"
+            f"SELECT COUNT(*) FROM leads l WHERE l.status='Concluído' AND {ROOT}",
+            resp_args
         )[0][0]
 
         total_cancelados_all = q(
             f"""SELECT COUNT(*) FROM leads l
-               WHERE l.status IN ('Cancelado','Inativo Pedido Cliente') AND {ROOT}"""
+               WHERE l.status IN ('Cancelado','Inativo Pedido Cliente') AND {ROOT}""",
+            resp_args
         )[0][0]
 
-        total_all = q(f"SELECT COUNT(*) FROM leads l WHERE {ROOT}")[0][0]
+        total_all = q(f"SELECT COUNT(*) FROM leads l WHERE {ROOT}", resp_args)[0][0]
 
         total_atrasados = q(
             f"""SELECT COUNT(*) FROM leads l
                WHERE l.due_date < ? AND l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente')
                AND {ROOT}""",
-            (today_str,)
+            (today_str,) + resp_args
         )[0][0]
 
         total_atrasados_cnpj = q(
             f"""SELECT COUNT(*) FROM leads l
                WHERE l.due_date_junta IS NOT NULL AND l.due_date_junta < ?
                AND l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}""",
-            (today_str,)
+            (today_str,) + resp_args
         )[0][0]
 
         total_atrasados_nf = q(
             f"""SELECT COUNT(*) FROM leads l
                WHERE l.due_date_nf IS NOT NULL AND l.due_date_nf < ?
                AND l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}""",
-            (today_str,)
+            (today_str,) + resp_args
         )[0][0]
 
         total_urgentes = q(
             f"""SELECT COUNT(*) FROM leads l
                WHERE l.priority='Urgente' AND l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente')
-               AND {ROOT}"""
+               AND {ROOT}""",
+            resp_args
         )[0][0]
 
         # Detailed lists
@@ -1676,7 +1692,7 @@ def get_analytics_data(month: int, year: int) -> dict:
                AND l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente')
                AND {ROOT}
                ORDER BY l.due_date ASC LIMIT 25""",
-            (today_str, today_str, today_str)
+            (today_str, today_str, today_str) + resp_args
         )]
 
         mais_antigos_list = [dict(r) for r in q(
@@ -1689,7 +1705,8 @@ def get_analytics_data(month: int, year: int) -> dict:
                LEFT JOIN lead_stages s ON s.id = l.current_stage_id
                LEFT JOIN lead_macrophases mp ON mp.id = s.macrophase_id
                WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
-               ORDER BY l.created_at ASC LIMIT 15"""
+               ORDER BY l.created_at ASC LIMIT 15""",
+            resp_args
         )]
 
         parados_list = [dict(r) for r in q(
@@ -1703,7 +1720,8 @@ def get_analytics_data(month: int, year: int) -> dict:
                LEFT JOIN lead_stages s ON s.id = l.current_stage_id
                LEFT JOIN lead_macrophases mp ON mp.id = s.macrophase_id
                WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
-               ORDER BY l.stage_entered_at ASC LIMIT 15"""
+               ORDER BY l.stage_entered_at ASC LIMIT 15""",
+            resp_args
         )]
 
         sem_retorno_list = [dict(r) for r in q(
@@ -1720,7 +1738,8 @@ def get_analytics_data(month: int, year: int) -> dict:
                     OR UPPER(s.name) LIKE '%APROVAÇÃO%' OR UPPER(s.name) LIKE '%APROVACAO%'
                     OR UPPER(s.name) LIKE '%VALIDAÇÃO%' OR UPPER(s.name) LIKE '%VALIDACAO%')
                AND julianday('now') - julianday(l.stage_entered_at) > 2
-               ORDER BY dias_aguardando DESC LIMIT 15"""
+               ORDER BY dias_aguardando DESC LIMIT 15""",
+            resp_args
         )]
 
         rework_list = [dict(r) for r in q(
@@ -1736,8 +1755,10 @@ def get_analytics_data(month: int, year: int) -> dict:
                LEFT JOIN lead_stages s ON s.id = l.current_stage_id
                LEFT JOIN lead_macrophases mp ON mp.id = s.macrophase_id
                WHERE ge.event_type IN ('rejected', 'backward', 'returned', 'review_rejected')
+               AND {ROOT}
                GROUP BY ge.lead_id
-               ORDER BY rework_count DESC, last_rework DESC LIMIT 10"""
+               ORDER BY rework_count DESC, last_rework DESC LIMIT 10""",
+            resp_args
         )]
 
         reprovados_list = [dict(r) for r in q(
@@ -1752,23 +1773,26 @@ def get_analytics_data(month: int, year: int) -> dict:
                LEFT JOIN lead_types lt ON lt.id = l.lead_type_id
                LEFT JOIN lead_stages s ON s.id = l.current_stage_id
                LEFT JOIN lead_macrophases mp ON mp.id = s.macrophase_id
-               WHERE la.status = 'rejected' AND {ROOT.replace('l.', 'l.')}
+               WHERE la.status = 'rejected' AND {ROOT}
                GROUP BY la.lead_id
-               ORDER BY reject_count DESC LIMIT 10"""
+               ORDER BY reject_count DESC LIMIT 10""",
+            resp_args
         )]
 
         by_type = [dict(r) for r in q(
             f"""SELECT lt.name, lt.color, COUNT(*) as cnt
                FROM leads l JOIN lead_types lt ON lt.id = l.lead_type_id
                WHERE {ROOT}
-               GROUP BY lt.id ORDER BY cnt DESC"""
+               GROUP BY lt.id ORDER BY cnt DESC""",
+            resp_args
         )]
 
         by_type_active = [dict(r) for r in q(
             f"""SELECT lt.name, lt.color, COUNT(*) as cnt
                FROM leads l JOIN lead_types lt ON lt.id = l.lead_type_id
                WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
-               GROUP BY lt.id ORDER BY cnt DESC"""
+               GROUP BY lt.id ORDER BY cnt DESC""",
+            resp_args
         )]
 
         by_macrophase = [dict(r) for r in q(
@@ -1777,16 +1801,26 @@ def get_analytics_data(month: int, year: int) -> dict:
                LEFT JOIN lead_stages s ON s.id = l.current_stage_id
                LEFT JOIN lead_macrophases mp ON mp.id = s.macrophase_id
                WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
-               GROUP BY mp.name ORDER BY cnt DESC"""
+               GROUP BY mp.name ORDER BY cnt DESC""",
+            resp_args
         )]
 
+        # by_responsible: NOT filtered by responsavel — shows full breakdown across team
+        BY_RESP_ROOT = "(l.parent_lead_id IS NULL OR l.parent_lead_id = '')"
         by_responsible = [dict(r) for r in q(
             f"""SELECT COALESCE(l.responsible_name,'Não atribuído') as name,
                        COUNT(*) as cnt,
                        SUM(CASE WHEN l.due_date < '{today_str}' THEN 1 ELSE 0 END) as atrasados
                FROM leads l
-               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
+               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {BY_RESP_ROOT}
                GROUP BY l.responsible_name ORDER BY cnt DESC LIMIT 12"""
+        )]
+
+        # List of distinct responsibles for the filter dropdown
+        responsaveis_disponiveis = [r[0] for r in q(
+            """SELECT DISTINCT responsible_name FROM leads
+               WHERE responsible_name IS NOT NULL AND responsible_name <> ''
+               ORDER BY responsible_name"""
         )]
 
         # 12-month trend
@@ -1805,13 +1839,15 @@ def get_analytics_data(month: int, year: int) -> dict:
                 m_end = f"{m_y:04d}-{m_m + 1:02d}-01"
             opened = q(
                 f"SELECT COUNT(*) FROM leads l WHERE l.created_at >= ? AND l.created_at < ? AND {ROOT}",
-                (m_start, m_end)
+                (m_start, m_end) + resp_args
             )[0][0]
             closed = q(
-                """SELECT COUNT(DISTINCT lead_id) FROM lead_history
-                   WHERE field='status' AND new_value='Concluído'
-                   AND created_at >= ? AND created_at < ?""",
-                (m_start, m_end)
+                f"""SELECT COUNT(DISTINCT lh.lead_id) FROM lead_history lh
+                   {join_lh}
+                   WHERE lh.field='status' AND lh.new_value='Concluído'
+                   AND lh.created_at >= ? AND lh.created_at < ?
+                   {where_lh}""",
+                (m_start, m_end) + resp_args
             )[0][0]
             trend.append({"label": f"{m_m:02d}/{m_y}", "abertos": opened, "concluidos": closed})
 
@@ -1841,6 +1877,8 @@ def get_analytics_data(month: int, year: int) -> dict:
             "by_macrophase": by_macrophase,
             "by_responsible": by_responsible,
             "trend": trend,
+            "responsaveis_disponiveis": responsaveis_disponiveis,
+            "responsavel_selecionado": responsavel or "",
         }
 
 
