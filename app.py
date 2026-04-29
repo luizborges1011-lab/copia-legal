@@ -112,7 +112,7 @@ def admin_usuarios():
     if request.method == "POST":
         name       = request.form.get("name", "").strip()
         email      = request.form.get("email", "").strip().lower()
-        senha      = request.form.get("password", "")
+        senha      = request.form.get("senha", "")
         profile    = request.form.get("profile", "operacional")
         can_review = 1 if request.form.get("can_review") else 0
         if not name or not email or not senha:
