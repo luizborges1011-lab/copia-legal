@@ -253,6 +253,19 @@ def detail(lead_id):
         from db import get_ficha as _get_ficha
         ficha_data = _get_ficha(int(lead["ficha_id"]))
     from db import list_users as _list_users
+    stage_templates = []
+    if lead.get("current_stage_id"):
+        stage_templates = db.list_stage_checklist_templates(lead["current_stage_id"])
+        with db.db_cursor() as _conn:
+            row = _conn.execute(
+                "SELECT checklist_template_id FROM lead_stages WHERE id=?",
+                (lead["current_stage_id"],)
+            ).fetchone()
+        if row and row[0]:
+            tpl = db.get_checklist_template(row[0])
+            if tpl:
+                for item in tpl.get("items", []):
+                    stage_templates.append({"label": item["label"], "required": item.get("required", 0)})
     return render_template(
         "leads/card_full.html",
         lead=lead,
@@ -268,6 +281,7 @@ def detail(lead_id):
         history=db.list_history(lead_id),
         files=db.list_files(lead_id),
         checklist=db.list_checklist(lead_id),
+        stage_templates=stage_templates,
         form_fields=db.get_form_fields(lead["lead_type_id"]),
         users=_list_users(),
     )
