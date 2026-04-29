@@ -95,19 +95,14 @@ def tipos_salvar():
 @leads_admin_bp.route("/tipos/<type_id>/excluir", methods=["POST"])
 def tipos_excluir(type_id):
     with db_cursor() as conn:
-        leads_of_type = [r["id"] for r in conn.execute(
-            "SELECT id FROM leads WHERE lead_type_id=?", (type_id,)
-        ).fetchall()]
-        if leads_of_type:
-            placeholders = ",".join("?" * len(leads_of_type))
-            child_ids = [r["id"] for r in conn.execute(
-                f"SELECT id FROM leads WHERE parent_lead_id IN ({placeholders})",
-                leads_of_type,
-            ).fetchall()]
-            for cid in child_ids:
-                conn.execute("DELETE FROM leads WHERE id=?", (cid,))
-            for lid in leads_of_type:
-                conn.execute("DELETE FROM leads WHERE id=?", (lid,))
+        conn.execute(
+            """DELETE FROM leads
+               WHERE lead_type_id=?
+                  OR workflow_id IN (SELECT id FROM lead_workflows WHERE lead_type_id=?)""",
+            (type_id, type_id),
+        )
+        conn.execute("DELETE FROM lead_form_fields WHERE lead_type_id=?", (type_id,))
+        conn.execute("DELETE FROM lead_workflows WHERE lead_type_id=?", (type_id,))
         conn.execute("DELETE FROM lead_types WHERE id=?", (type_id,))
     flash("Tipo excluído.", "info")
     return redirect(url_for("leads_admin.tipos"))
