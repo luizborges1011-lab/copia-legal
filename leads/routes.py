@@ -238,6 +238,9 @@ def create():
         description=(request.form.get("description") or "").strip() or None,
         due_date=request.form.get("due_date") or None,
     )
+    lead_type = db.get_lead_type(type_id)
+    if lead_type and lead_type.get("code") in db.ORGAN_TYPE_CODES:
+        db.apply_tag_to_lead(lead_id, "avulso")
     base = return_url if return_url else url_for("leads.index")
     return redirect(f"{base}?card={lead_id}")
 

@@ -980,9 +980,11 @@
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         if (filteredUsers[selectedIdx]) {
           e.preventDefault();
+          e.stopImmediatePropagation();
           insertMention(filteredUsers[selectedIdx].name);
         }
       } else if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
         hideDrop();
       }
     });
