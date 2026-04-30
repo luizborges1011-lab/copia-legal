@@ -187,6 +187,17 @@
   </div>
 </div>
 
+<!-- ===== Distribuição por Escritório ===== -->
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="chart-box">
+      <div class="fw-semibold small mb-3">Distribuição por Escritório</div>
+      <div class="chart-canvas-wrap" style="height:200px;"><canvas id="chartOffice"></canvas></div>
+      <div id="legendOffice" class="mt-2"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Top 5 Mais Antigos (Cards) ===== -->
 {% if data.mais_antigos_list %}
 <div class="section-head"><i class="bi bi-hourglass-bottom me-1"></i>Top 5 processos mais antigos em andamento</div>
@@ -510,9 +521,30 @@
 <script>
 // ---------- DATA ----------
 const trend = {{ data.trend | tojson }};
-const byTipo = {{ data.by_type_active | tojson }};
+const byTipoRaw = {{ data.by_type_active | tojson }};
 const byMacro = {{ data.by_macrophase | tojson }};
 const byResp = {{ data.by_responsible | tojson }};
+const byOffice = {{ data.by_office | tojson }};
+
+// Apenas no gráfico de "Distribuição por Tipo": junta as duas variações
+// de "Alteração Contratual" (com endereço + sem endereço) numa fatia única.
+const byTipo = (() => {
+  const merged = [];
+  let altMerged = null;
+  byTipoRaw.forEach(t => {
+    const isAlt = /altera[cç][aã]o\s+contratual/i.test(t.name || '');
+    if (isAlt) {
+      if (!altMerged) {
+        altMerged = { name: 'Alteração Contratual', color: t.color, cnt: 0 };
+        merged.push(altMerged);
+      }
+      altMerged.cnt += t.cnt;
+    } else {
+      merged.push(t);
+    }
+  });
+  return merged.sort((a, b) => b.cnt - a.cnt);
+})();
 
 // ---------- Chart defaults ----------
 Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
@@ -581,6 +613,34 @@ if (byMacro.length > 0) {
       scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
     }
   });
+}
+
+// ---------- Por Escritório (doughnut) ----------
+if (byOffice.length > 0) {
+  new Chart(document.getElementById('chartOffice'), {
+    type: 'doughnut',
+    data: {
+      labels: byOffice.map(o => o.name),
+      datasets: [{ data: byOffice.map(o => o.cnt),
+        backgroundColor: byOffice.map((o,i) => o.color || COLORS[i % COLORS.length]),
+        borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
+      }
+    }
+  });
+  const legendOff = document.getElementById('legendOffice');
+  byOffice.forEach((o, i) => {
+    const dot = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${o.color || COLORS[i%COLORS.length]};margin-right:5px;"></span>`;
+    legendOff.innerHTML += `<div class="d-flex align-items-center gap-1 small mb-1">${dot}${o.name} <span class="ms-auto text-muted">${o.cnt}</span></div>`;
+  });
+} else {
+  document.getElementById('chartOffice').parentElement.innerHTML += '<p class="text-center text-muted small">Sem dados.</p>';
 }
 
 // ---------- Por Responsável (bar) ----------

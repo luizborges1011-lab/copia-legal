@@ -1798,6 +1798,17 @@ def get_analytics_data(month: int, year: int, responsavel: Optional[str] = None)
             resp_args
         )]
 
+        by_office = [dict(r) for r in q(
+            f"""SELECT COALESCE(o.name,'Sem escritório') as name,
+                       o.color as color,
+                       COUNT(*) as cnt
+               FROM leads l
+               LEFT JOIN lead_offices o ON o.id = l.office_id
+               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
+               GROUP BY o.id ORDER BY cnt DESC""",
+            resp_args
+        )]
+
         by_macrophase = [dict(r) for r in q(
             f"""SELECT COALESCE(mp.name,'Sem etapa') as name, COUNT(*) as cnt
                FROM leads l
@@ -1877,6 +1888,7 @@ def get_analytics_data(month: int, year: int, responsavel: Optional[str] = None)
             "reprovados_list": reprovados_list,
             "by_type": by_type,
             "by_type_active": by_type_active,
+            "by_office": by_office,
             "by_macrophase": by_macrophase,
             "by_responsible": by_responsible,
             "trend": trend,
