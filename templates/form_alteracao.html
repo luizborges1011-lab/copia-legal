@@ -806,9 +806,16 @@
       <div class="col-md-2"><input type="text" class="form-control form-control-sm" data-field="nacionalidade" placeholder="Nac." value="brasileira"></div>
       <div class="col-md-3"><input type="text" class="form-control form-control-sm" data-field="profissao" placeholder="Profissão"></div>
       <div class="col-md-2">
-        <select class="form-select form-select-sm" data-field="estadoCivil">
+        <select class="form-select form-select-sm" data-field="estadoCivil" onchange="toggleRegimeBensA(this)">
           <option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option>
           <option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option>
+        </select>
+      </div>
+      <div class="col-md-3 regime-bens-field" style="display:none;">
+        <select class="form-select form-select-sm" data-field="regimeBens">
+          <option value="comunhao_parcial">Comunhão Parcial</option>
+          <option value="comunhao_universal">Comunhão Universal</option>
+          <option value="separacao_total">Separação Total</option>
         </select>
       </div>
       <div class="col-md-4"><input type="text" class="form-control form-control-sm" data-field="end_cidade" placeholder="Cidade residência"></div>
@@ -1236,6 +1243,9 @@ function adicionarSocioAtual(dados) {
     setField(div, 'genero',         dados.genero || 'masculino');
     setField(div, 'nacionalidade',  dados.nacionalidade || 'brasileira');
     setField(div, 'estadoCivil',    dados.estadoCivil || 'solteiro');
+    setField(div, 'regimeBens',     dados.regimeBens || '');
+    const _ec = div.querySelector('[data-field="estadoCivil"]');
+    if (_ec) toggleRegimeBensA(_ec);
     setField(div, 'profissao',      dados.profissao || '');
     setField(div, 'quantidadeCotas', dados.quantidadeCotas || '');
     setField(div, 'valorUnitarioCota', dados.valorUnitarioCota || 1);
@@ -2385,7 +2395,7 @@ function coletarSociosAtuais() {
       estadoCivil:    getFieldVal(cont, 'estadoCivil'),
       uniaoEstavel:   !!(cont.querySelector('[data-field="uniaoEstavel"]')?.checked),
       nomeCompanheiro: getFieldVal(cont, 'nomeCompanheiro'),
-      regimeBens:     '',
+      regimeBens:     getFieldVal(cont, 'regimeBens'),
       profissao:      getFieldVal(cont, 'profissao'),
       nacionalidade:  getFieldVal(cont, 'nacionalidade') || 'brasileira',
       telefone:       '',

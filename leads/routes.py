@@ -31,6 +31,7 @@ def index():
         "status":      request.args.get("status") or None,
         "responsible": request.args.get("responsible") or None,
         "tag":         request.args.get("tag") or None,
+        "q":           (request.args.get("q") or "").strip() or None,
     }
     leads = db.list_leads(filters)
     _add_progress(leads)
@@ -104,6 +105,7 @@ def organ_index(organ_code):
         "status":      request.args.get("status") or None,
         "responsible": request.args.get("responsible") or None,
         "tag":         request.args.get("tag") or None,
+        "q":           (request.args.get("q") or "").strip() or None,
     }
     leads_list = db.list_leads(filters)
     _add_progress(leads_list)

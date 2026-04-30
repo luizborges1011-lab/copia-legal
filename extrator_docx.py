@@ -92,6 +92,8 @@ Regras:
 - Se for alteração contratual consolidada, use os dados do contrato consolidado ao final.
 - Para o endereço: separe corretamente logradouroTipo (Rua, Avenida...) do logradouroDescricao.
 - numero_alteracao: se o documento for uma alteração contratual, retorne o número ordinal dela (ex: "SEGUNDA ALTERAÇÃO" → 2, "SEXTA ALTERAÇÃO" → 6). Se for contrato social original (constituição), retorne 0.
+- nire: SEMPRE procure o NIRE em DOIS locais possíveis: (a) no cabeçalho de uma alteração contratual anterior, junto com CNPJ/razão social; (b) na parte inferior/rodapé/final de um contrato social, geralmente próximo ao registro da Junta Comercial. Aceite formatos com pontos, traços ou espaços (ex: "41.2.0123456-7", "412.0123456-7", "41 2 0123456 7"). Retorne apenas os dígitos.
+- regimeBens: OBRIGATÓRIO quando estadoCivil for "casado". Procure no documento o regime de casamento de cada sócio casado e mapeie para um destes códigos: "comunhao_parcial" (comunhão parcial de bens), "comunhao_universal" (comunhão universal de bens), "separacao_total" (separação total/absoluta de bens), "separacao_obrigatoria" (separação obrigatória/legal), "participacao_final_aquestos" (participação final nos aquestos). Nunca deixe em branco se o sócio for casado.
 """
 
     try:
@@ -157,10 +159,11 @@ def extrair_local(texto: str) -> dict:
     if m:
         dados["cnpj"] = m.group(1).strip()
 
-    # NIRE
-    m = re.search(r'NIRE[:\s]+([\d\.]+)', texto, re.IGNORECASE)
+    # NIRE — pode aparecer no cabeçalho de alteração ou no rodapé do contrato social,
+    # com formatos variados (pontos, traços, espaços)
+    m = re.search(r'NIRE[:\s\-]*([\d][\d\.\s\-]{5,})', texto, re.IGNORECASE)
     if m:
-        dados["nire"] = m.group(1).replace(".", "")
+        dados["nire"] = re.sub(r'\D', '', m.group(1))
 
     # Razão social — "gira sob o nome de X" ou "nome empresarial: X" ou "sob o nome de X"
     for padrao in [

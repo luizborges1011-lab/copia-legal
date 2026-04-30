@@ -706,6 +706,9 @@ def list_leads(filters: dict | None = None) -> list[dict]:
     if filters.get("tag"):
         where.append("l.id IN (SELECT lead_id FROM lead_tag_assignments WHERE tag_id = ?)")
         params.append(filters["tag"])
+    if filters.get("q"):
+        where.append("l.name LIKE ?")
+        params.append(f"%{filters['q']}%")
 
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
     sql = f"""

@@ -812,11 +812,11 @@
         </div>
         <!-- View mode -->
         <div id="descView" class="px-3 pb-3 text-secondary"
-          style="font-size:12px; line-height:1.55; white-space:pre-wrap; min-height:36px; max-height:120px; overflow-y:auto; cursor:default;">{{ lead.description or '— clique em editar para adicionar uma descrição —' }}</div>
+          style="font-size:13px; line-height:1.6; white-space:pre-wrap; min-height:80px; max-height:220px; overflow-y:auto; cursor:default;">{{ lead.description or '— clique em editar para adicionar uma descrição —' }}</div>
         <!-- Edit mode -->
         <div id="descEdit" class="px-3 pb-3 d-none">
           <textarea id="descTextarea" class="form-control form-control-sm border shadow-none mb-2"
-            style="resize:none; font-size:12px; min-height:80px; background:#fff;"
+            style="resize:vertical; font-size:13px; min-height:160px; max-height:320px; background:#fff;"
             placeholder="Anotações sobre este processo...">{{ lead.description or '' }}</textarea>
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-dark flex-grow-1 py-1" id="descSaveBtn" style="font-size:12px;">
