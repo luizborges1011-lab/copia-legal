@@ -105,6 +105,25 @@
 {# Compute days until each milestone #}
 {% set today_str = today.isoformat() if today is defined else '' %}
 
+<!-- Access Control Panel -->
+<div id="passwordPanel" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; padding: 20px;">
+  <div class="card shadow-sm" style="max-width: 400px; width: 100%; border-radius: 16px; border: none;">
+    <div class="card-body text-center p-4">
+      <img src="/static/logo.png" alt="Logo" style="height: 54px; border-radius: 8px; object-fit: contain; margin-bottom: 20px;">
+      <h5 class="fw-bold mb-2">Acompanhamento do Processo</h5>
+      <p class="text-muted small mb-4">Informe a senha de acesso enviada pela nossa equipe para visualizar o andamento.</p>
+      <div class="mb-3">
+        <input type="password" class="form-control text-center mx-auto" id="accessCodeInput" placeholder="Senha de acesso" autofocus style="letter-spacing: 2px; font-size: 1.2rem; max-width: 200px;">
+        <div class="invalid-feedback mt-2" id="accessError">Senha incorreta.</div>
+      </div>
+      <button class="btn btn-primary w-100 mt-2" id="unlockBtn" style="background: var(--brand); border: none; padding: 10px; border-radius: 8px;">
+        <i class="bi bi-unlock me-2"></i>Acessar Portal
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="portalMain" style="display: none;">
 <!-- Header -->
 <div class="portal-header">
   <div class="mb-3">
@@ -330,8 +349,25 @@
   <strong>ECM Registro</strong> &nbsp;·&nbsp; Portal de Acompanhamento de Processos<br>
   <span style="font-size:.67rem;">Software desenvolvido por ECM Atuações &nbsp;·&nbsp; Atualizado automaticamente a cada 5 minutos</span>
 </div>
+</div><!-- /portalMain content -->
 
 <script>
+const ACCESS_CODE = "{{ lead.client_access_code or '1234' }}";
+
+document.getElementById('unlockBtn').addEventListener('click', function() {
+  const input = document.getElementById('accessCodeInput');
+  if (input.value.trim() === ACCESS_CODE) {
+    document.getElementById('passwordPanel').style.display = 'none';
+    document.getElementById('portalMain').style.display = '';
+  } else {
+    input.classList.add('is-invalid');
+  }
+});
+document.getElementById('accessCodeInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') document.getElementById('unlockBtn').click();
+  this.classList.remove('is-invalid');
+});
+
 // Compute days until milestones and update cards
 function daysUntil(dateStr) {
   if (!dateStr) return null;

@@ -124,11 +124,29 @@
         <div class="dropdown-menu p-3" style="min-width:320px;" id="portalDropMenu">
           <div class="small fw-semibold mb-2">Link de acompanhamento</div>
           <div class="input-group input-group-sm mb-2">
-            <input type="text" class="form-control font-monospace" id="portalLinkInput" readonly placeholder="Clique em Gerar…" style="font-size:.74rem;">
-            <button class="btn btn-outline-secondary" id="portalCopyBtn" title="Copiar link" disabled>
+            <input type="text" class="form-control font-monospace" id="portalLinkInput" readonly value="{{ request.host_url.rstrip('/') ~ '/processo/' ~ lead.client_token if lead.client_token else '' }}" placeholder="Clique em Gerar…" style="font-size:.74rem;">
+            <button class="btn btn-outline-secondary" id="portalCopyBtn" title="Copiar link" {% if not lead.client_token %}disabled{% endif %}>
               <i class="bi bi-clipboard"></i>
             </button>
           </div>
+          <div class="mb-2 p-2 bg-light rounded text-center border" id="portalAccessCodeDiv" {% if not lead.client_token %}style="display:none;"{% endif %}>
+            <span class="small text-muted d-block mb-1">Senha de Acesso:</span>
+            <span class="fw-bold text-dark font-monospace fs-5" id="portalAccessCodeSpan">{{ lead.client_access_code }}</span>
+          </div>
+          <script>
+            if (!'{{ lead.client_token }}') {
+              let checkLink = setInterval(() => {
+                let inp = document.getElementById('portalLinkInput');
+                if (inp && inp.value && inp.value.includes('/processo/')) {
+                  clearInterval(checkLink);
+                  fetch(`/leads/{{ lead.id }}/gerar-link-cliente`, {method:'POST'}).then(r => r.json()).then(d => {
+                     document.getElementById('portalAccessCodeSpan').textContent = d.code;
+                     document.getElementById('portalAccessCodeDiv').style.display = '';
+                  });
+                }
+              }, 500);
+            }
+          </script>
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-primary flex-grow-1" id="portalGerarBtn"
               data-lead-id="{{ lead.id }}">
