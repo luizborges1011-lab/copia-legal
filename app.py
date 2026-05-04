@@ -86,6 +86,9 @@ def require_login():
         return
     if request.path in ["/constituicao/salvar", "/alteracao/salvar"] and request.form.get("client_token"):
         return
+    # Public webhook receiver
+    if request.path.startswith("/api/leads/webhook/"):
+        return
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
