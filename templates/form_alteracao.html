@@ -16,6 +16,7 @@
   <input type="hidden" name="dados_json" id="dados_json">
   <input type="hidden" name="ficha_id" value="{{ ficha_id or '' }}">
   <input type="hidden" name="lead_id" id="lead_id_hidden" value="{{ lead_id or '' }}">
+  <input type="hidden" name="conferir" value="{{ request.args.get('conferir', '') }}">
   {% if client_mode %}
   <input type="hidden" name="client_token" value="{{ token }}">
   {% endif %}
@@ -765,7 +766,7 @@
   <!-- Botões -->
   <div class="d-flex gap-2 mb-5">
     <button type="submit" class="btn btn-primary px-4">
-      <i class="bi bi-save"></i> {% if client_mode %}Enviar Dados{% else %}Salvar Ficha{% endif %}
+      <i class="bi bi-save"></i> {% if client_mode %}Enviar Dados{% elif request.args.get('conferir') %}Salvar e Aprovar Formulário{% else %}Salvar Ficha{% endif %}
     </button>
     {% if not client_mode %}
     <a href="/" class="btn btn-outline-secondary">Cancelar</a>

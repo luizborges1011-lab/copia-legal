@@ -248,6 +248,10 @@ def constituicao_salvar():
         "percentualPorSocio": percentuais
     }
 
+    is_conferir = request.form.get("conferir") == "1"
+    if is_conferir:
+        dados["conferido"] = True
+
     client_token = request.form.get("client_token")
     lead_id_param = request.form.get("lead_id") or None
     ficha_id = request.form.get("ficha_id")
@@ -263,6 +267,8 @@ def constituicao_salvar():
     if lead_id_param:
         leads_db.link_ficha(lead_id_param, str(ficha_id))
         leads_db.sync_sem_atividade_tag(lead_id_param, dados)
+        if is_conferir:
+            leads_db.add_comment(lead_id_param, "✅ Formulário conferido e aprovado.", author=session.get("user_name") or "Sistema")
         if client_token:
             lead = leads_db.get_lead(lead_id_param)
             if lead:
@@ -383,6 +389,10 @@ def alteracao_salvar():
         flash("Erro ao processar os dados.", "danger")
         return redirect(url_for("alteracao_nova"))
 
+    is_conferir = request.form.get("conferir") == "1"
+    if is_conferir:
+        dados["conferido"] = True
+
     razao = dados.get("empresa_atual", {}).get("razaoSocial", "Sem Nome")
     client_token = request.form.get("client_token")
     lead_id_param = request.form.get("lead_id") or None
@@ -401,6 +411,8 @@ def alteracao_salvar():
         # For alterations: atividades may be under empresa_atual.atividades
         _dados_sync = {"empresa": dados.get("empresa_atual", dados.get("empresa", {}))}
         leads_db.sync_sem_atividade_tag(lead_id_param, _dados_sync)
+        if is_conferir:
+            leads_db.add_comment(lead_id_param, "✅ Formulário conferido e aprovado.", author=session.get("user_name") or "Sistema")
         if client_token:
             lead = leads_db.get_lead(lead_id_param)
             if lead:
@@ -480,17 +492,6 @@ def api_extrair_contrato():
         return jsonify(dados)
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
-
-
-@app.route("/api/fichas/<int:fid>/conferir", methods=["POST"])
-def api_ficha_conferir(fid):
-    ficha = get_ficha(fid)
-    if not ficha:
-        return jsonify({"erro": "Ficha não encontrada"}), 404
-    dados = ficha["dados"]
-    dados["conferido"] = True
-    atualizar_ficha(fid, ficha["subtipo"], ficha["razao_social"], dados)
-    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------
