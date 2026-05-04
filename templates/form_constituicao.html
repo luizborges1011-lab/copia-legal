@@ -3,7 +3,9 @@
 
 {% block content %}
 <div class="d-flex align-items-center mb-4">
+  {% if not client_mode %}
   <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  {% endif %}
   <div>
     <h4 class="mb-0 fw-bold">
       {% if ficha_id %}Editar Constituição{% else %}Nova Constituição de Empresa{% endif %}
@@ -15,7 +17,10 @@
 <form id="formConstituicao" method="POST" action="/constituicao/salvar">
   <input type="hidden" name="dados_json" id="dados_json">
   <input type="hidden" name="ficha_id" value="{{ ficha_id or '' }}">
-  <input type="hidden" name="lead_id" id="lead_id_hidden">
+  <input type="hidden" name="lead_id" id="lead_id_hidden" value="{{ lead_id or '' }}">
+  {% if client_mode %}
+  <input type="hidden" name="client_token" value="{{ token }}">
+  {% endif %}
 
   <!-- ================================================================ -->
   <!-- SÓCIOS (primeiro) -->
@@ -85,6 +90,7 @@
           <label class="form-label required">Razão Social</label>
           <div class="d-flex gap-2 align-items-start">
             <input type="text" class="form-control" id="razaoSocial" placeholder="NOME DA EMPRESA LTDA" required>
+            {% if not client_mode %}
             <button type="button" class="btn btn-outline-secondary btn-sm text-nowrap" id="btn-verificar-rs"
                     onclick="verificarRazaoSocial()" title="Verificar conformidade do nome com as regras do DREI">
               <i class="bi bi-search me-1"></i>Verificar
@@ -93,6 +99,7 @@
                     onclick="sugerirRazaoSocial()" title="Sugerir nomes com base nos sócios e atividades">
               <i class="bi bi-lightbulb me-1"></i>Sugerir
             </button>
+            {% endif %}
           </div>
           <div id="rs-status" class="mt-1" style="display:none;"></div>
           <div id="rs-sugestoes" class="mt-1" style="display:none;"></div>
@@ -142,6 +149,7 @@
       </div>
 
       <!-- Objeto Social + IA -->
+      {% if not client_mode %}
       <div class="section-title mt-3">Objeto Social</div>
       <div class="row g-3">
         <div class="col-12">
@@ -170,6 +178,14 @@
           </div>
         </div>
       </div>
+      {% else %}
+      <div class="section-title mt-3">Objeto Social</div>
+      <div class="col-12">
+        <label class="form-label required">Texto do Objeto Social</label>
+        <textarea class="form-control" id="objetoSocial" rows="4"
+                  style="resize:vertical; min-height:100px;" placeholder="Ex: PRESTAÇÃO DE SERVIÇOS CONTÁBEIS..."></textarea>
+      </div>
+      {% endif %}
 
       <!-- Endereço Comercial -->
       <div class="d-flex align-items-center mt-3 mb-1">
@@ -305,9 +321,11 @@
   <!-- ================================================================ -->
   <div class="d-flex gap-2 mb-5">
     <button type="submit" class="btn btn-primary px-4">
-      <i class="bi bi-save"></i> Salvar Ficha
+      <i class="bi bi-save"></i> {% if client_mode %}Enviar Dados{% else %}Salvar Ficha{% endif %}
     </button>
+    {% if not client_mode %}
     <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+    {% endif %}
   </div>
 </form>
 

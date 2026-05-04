@@ -79,6 +79,13 @@ def require_login():
     # Public client portal
     if request.path.startswith("/processo/"):
         return
+    # Public client form
+    if request.path.startswith("/cliente/form/"):
+        return
+    if request.path.startswith("/api/extrair-documento-socio") or request.path.startswith("/ibge/"):
+        return
+    if request.path in ["/constituicao/salvar", "/alteracao/salvar"] and request.form.get("client_token"):
+        return
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
@@ -241,19 +248,33 @@ def constituicao_salvar():
         "percentualPorSocio": percentuais
     }
 
+    client_token = request.form.get("client_token")
     lead_id_param = request.form.get("lead_id") or None
     ficha_id = request.form.get("ficha_id")
     if ficha_id:
         atualizar_ficha(int(ficha_id), subtipo, razao, dados)
-        flash(f"Ficha '{razao}' atualizada com sucesso!", "success")
+        if not client_token:
+            flash(f"Ficha '{razao}' atualizada com sucesso!", "success")
     else:
         ficha_id = salvar_ficha("constituicao", subtipo, razao, dados)
-        flash(f"Ficha '{razao}' salva com sucesso!", "success")
+        if not client_token:
+            flash(f"Ficha '{razao}' salva com sucesso!", "success")
 
     if lead_id_param:
         leads_db.link_ficha(lead_id_param, str(ficha_id))
         leads_db.sync_sem_atividade_tag(lead_id_param, dados)
+        if client_token:
+            lead = leads_db.get_lead(lead_id_param)
+            if lead:
+                leads_db.add_comment(lead["id"], "📝 O cliente preencheu e salvou o formulário. Por favor, revise os dados.", author="Sistema")
+                if lead.get("responsible_name"):
+                    from leads.api import _notify_by_name
+                    _notify_by_name(lead["responsible_name"], lead["id"], "form_client", "O cliente preencheu o formulário.", actor_name="Cliente")
+            return render_template("form_sucesso.html")
         return redirect(f"/leads/{lead_id_param}")
+
+    if client_token:
+        return render_template("form_sucesso.html")
 
     return redirect(url_for("dashboard"))
 
@@ -363,21 +384,35 @@ def alteracao_salvar():
         return redirect(url_for("alteracao_nova"))
 
     razao = dados.get("empresa_atual", {}).get("razaoSocial", "Sem Nome")
+    client_token = request.form.get("client_token")
     lead_id_param = request.form.get("lead_id") or None
     ficha_id = request.form.get("ficha_id")
     if ficha_id:
         atualizar_ficha(int(ficha_id), "alteracao", razao, dados)
-        flash(f"Alteração '{razao}' atualizada!", "success")
+        if not client_token:
+            flash(f"Alteração '{razao}' atualizada!", "success")
     else:
         ficha_id = salvar_ficha("alteracao", "alteracao", razao, dados)
-        flash(f"Alteração '{razao}' salva!", "success")
+        if not client_token:
+            flash(f"Alteração '{razao}' salva!", "success")
 
     if lead_id_param:
         leads_db.link_ficha(lead_id_param, str(ficha_id))
         # For alterations: atividades may be under empresa_atual.atividades
         _dados_sync = {"empresa": dados.get("empresa_atual", dados.get("empresa", {}))}
         leads_db.sync_sem_atividade_tag(lead_id_param, _dados_sync)
+        if client_token:
+            lead = leads_db.get_lead(lead_id_param)
+            if lead:
+                leads_db.add_comment(lead["id"], "📝 O cliente preencheu e salvou o formulário. Por favor, revise os dados.", author="Sistema")
+                if lead.get("responsible_name"):
+                    from leads.api import _notify_by_name
+                    _notify_by_name(lead["responsible_name"], lead["id"], "form_client", "O cliente preencheu o formulário.", actor_name="Cliente")
+            return render_template("form_sucesso.html")
         return redirect(f"/leads/{lead_id_param}")
+
+    if client_token:
+        return render_template("form_sucesso.html")
 
     return redirect(url_for("dashboard"))
 
@@ -876,6 +911,32 @@ def fcn_config():
 
     perguntas = get_config("fcn_perguntas", _FCN_PERGUNTAS_PADRAO)
     return render_template("fcn_config.html", perguntas=perguntas)
+
+
+# ---------------------------------------------------------------------------
+# Formulário para o Cliente (público)
+# ---------------------------------------------------------------------------
+
+@app.route("/cliente/form/<token>")
+def cliente_form(token):
+    lead = leads_db.get_lead_by_client_token(token)
+    if not lead:
+        return "Processo não encontrado.", 404
+    
+    type_data = leads_db.get_lead_type(lead["lead_type_id"]) if "lead_type_id" in lead else None
+    tname = (type_data["name"] or "").lower() if type_data else ""
+    
+    ficha_id = lead.get("ficha_id")
+    ficha = get_ficha(int(ficha_id)) if ficha_id else None
+    
+    openai_ok = bool(os.environ.get("OPENAI_API_KEY"))
+    
+    if "abertura" in tname or "constitui" in tname:
+        return render_template("form_constituicao.html", ficha=ficha["dados"] if ficha else None, ficha_id=ficha_id, lead_id=lead["id"], hide_nav=True, client_mode=True, token=token)
+    elif "altera" in tname:
+        return render_template("form_alteracao.html", ficha=ficha["dados"] if ficha else None, ficha_id=ficha_id, lead_id=lead["id"], hide_nav=True, client_mode=True, token=token, openai_ok=openai_ok, clausulas_banco=listar_clausulas(), modelos_clausulas=listar_modelos())
+    else:
+        return "Formulário não disponível para este tipo de processo.", 400
 
 
 # ---------------------------------------------------------------------------

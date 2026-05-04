@@ -3,7 +3,9 @@
 
 {% block content %}
 <div class="d-flex align-items-center mb-4">
+  {% if not client_mode %}
   <a href="/" class="btn btn-sm btn-outline-secondary me-3"><i class="bi bi-arrow-left"></i></a>
+  {% endif %}
   <div>
     <h4 class="mb-0 fw-bold">Alteração Contratual</h4>
     <small class="text-muted">LTDA ou LTDA Unipessoal — com consolidação automática</small>
@@ -13,12 +15,15 @@
 <form id="formAlteracao" method="POST" action="/alteracao/salvar" enctype="multipart/form-data">
   <input type="hidden" name="dados_json" id="dados_json">
   <input type="hidden" name="ficha_id" value="{{ ficha_id or '' }}">
-  <input type="hidden" name="lead_id" id="lead_id_hidden">
+  <input type="hidden" name="lead_id" id="lead_id_hidden" value="{{ lead_id or '' }}">
+  {% if client_mode %}
+  <input type="hidden" name="client_token" value="{{ token }}">
+  {% endif %}
 
   <!-- ================================================================ -->
   <!-- UPLOAD PARA AUTO-PREENCHIMENTO -->
   <!-- ================================================================ -->
-  <div class="card mb-4 border-primary" id="card-upload" {% if ficha_id %}style="display:none;"{% endif %}>
+  <div class="card mb-4 border-primary" id="card-upload" {% if ficha_id or client_mode %}style="display:none;"{% endif %}>
     <div class="card-header bg-primary text-white">
       <i class="bi bi-cloud-upload me-2"></i>Importar contrato existente (opcional)
     </div>
@@ -294,6 +299,7 @@
           <input type="text" class="form-control" id="nova_razao_social"
                  placeholder="NOVO NOME DA EMPRESA LTDA">
         </div>
+        {% if not client_mode %}
         <div class="col-auto d-flex gap-2">
           <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-verificar-rs"
                   onclick="verificarRazaoSocial()" title="Verificar conformidade com as regras do DREI">
@@ -304,6 +310,7 @@
             <i class="bi bi-lightbulb me-1"></i>Sugerir
           </button>
         </div>
+        {% endif %}
       </div>
       <div id="rs-status" class="mt-2" style="display:none;"></div>
       <div id="rs-sugestoes" class="mt-1" style="display:none;"></div>
@@ -540,9 +547,11 @@
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-outline-secondary active" onclick="mostrarFonteObjeto('livre', this)">Texto livre</button>
             <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteObjeto('banco', this)">Do banco</button>
+            {% if not client_mode %}
             <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteObjeto('ia', this)">
               <i class="bi bi-magic me-1"></i>IA
             </button>
+            {% endif %}
           </div>
         </div>
         <!-- Banco de cláusulas -->
@@ -616,9 +625,11 @@
             <button type="button" class="btn btn-outline-secondary active" onclick="mostrarFonteClausula('livre', this)">Texto livre</button>
             <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteClausula('banco', this)">Do banco</button>
             <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteClausula('padrao', this)">Padrão</button>
+            {% if not client_mode %}
             <button type="button" class="btn btn-outline-secondary" onclick="mostrarFonteClausula('ia', this)">
               <i class="bi bi-magic me-1"></i>IA
             </button>
+            {% endif %}
           </div>
 
           <!-- Livre -->
@@ -754,9 +765,11 @@
   <!-- Botões -->
   <div class="d-flex gap-2 mb-5">
     <button type="submit" class="btn btn-primary px-4">
-      <i class="bi bi-save"></i> Salvar Ficha
+      <i class="bi bi-save"></i> {% if client_mode %}Enviar Dados{% else %}Salvar Ficha{% endif %}
     </button>
+    {% if not client_mode %}
     <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+    {% endif %}
   </div>
 </form>
 

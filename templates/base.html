@@ -27,6 +27,7 @@
   </style>
 </head>
 <body>
+{% if not hide_nav %}
 <nav class="navbar navbar-expand-lg navbar-dark" style="background:#0f172a; border-bottom: 1px solid rgba(255,255,255,0.05);">
   <div class="container-fluid">
     <a class="navbar-brand" href="/">&#9878; ECM Registro</a>
@@ -70,10 +71,12 @@
     </div>
   </div>
 </nav>
+{% endif %}
 
 <div class="container-fluid">
   <div class="row">
     <!-- Sidebar -->
+    {% if not hide_nav %}
     <nav class="col-md-2 sidebar py-3 ps-3 pe-2 d-none d-md-block">
 
       <div class="small text-muted fw-bold mb-2 ps-2">CRM / PROCESSOS</div>
@@ -177,9 +180,10 @@
       {% endif %}
 
     </nav>
+    {% endif %}
 
     <!-- Conteúdo -->
-    <main class="col-md-10 py-4 px-4">
+    <main class="{% if hide_nav %}col-12{% else %}col-md-10{% endif %} py-4 px-4">
       {% with msgs = get_flashed_messages(with_categories=true) %}
         {% for cat, msg in msgs %}
         <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
