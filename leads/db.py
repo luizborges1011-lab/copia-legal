@@ -89,6 +89,7 @@ def init_db() -> None:
             "client_access_code":    "TEXT",
             "due_date_junta":        "TEXT",
             "due_date_nf":           "TEXT",
+            "valor":                 "REAL",
         }
         for col, ctype in new_cols.items():
             if col not in cols:
@@ -771,7 +772,8 @@ def get_lead(lead_id: str) -> Optional[dict]:
 def create_lead(*, lead_type_id: str, name: str, priority: str = "Normal",
                 status: str = "Aberto", description: str | None = None,
                 responsible_name: str | None = None,
-                due_date: str | None = None, office_id: str | None = None) -> str:
+                due_date: str | None = None, office_id: str | None = None,
+                valor: str | float | None = None) -> str:
     import datetime as _dt
     wf = get_default_workflow(lead_type_id)
     if not wf:
@@ -790,11 +792,11 @@ def create_lead(*, lead_type_id: str, name: str, priority: str = "Normal",
         conn.execute(
             """INSERT INTO leads (id,lead_type_id,workflow_id,current_stage_id,
                                   name,responsible_name,status,priority,description,
-                                  due_date,due_date_junta,due_date_nf,office_id,created_at,stage_entered_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  due_date,due_date_junta,due_date_nf,office_id,valor,created_at,stage_entered_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (lead_id, lead_type_id, wf["id"], first_stage, name,
              responsible_name, status, priority, description,
-             due_date, due_date_junta, due_date_nf, office_id, created_now, created_now),
+             due_date, due_date_junta, due_date_nf, office_id, valor, created_now, created_now),
         )
         conn.execute(
             "INSERT INTO lead_forms (id,lead_id,data) VALUES (?,?,'{}')",
@@ -827,7 +829,7 @@ def update_lead_fields(lead_id: str, fields: dict, actor: str | None = None) -> 
                 "op_baixo_risco", "op_alvara", "op_bombeiro",
                 "op_vigilancia", "op_conselho", "op_url_junta",
                 "op_link_assinatura_junta",
-                "op_organs_data", "parent_lead_id", "organ_type",
+                "op_organs_data", "parent_lead_id", "organ_type", "valor",
             }:
                 continue
             old = current[k]

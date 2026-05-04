@@ -227,6 +227,7 @@ def resetar_link_cliente(lead_id):
 def create():
     type_id = request.form.get("lead_type_id")
     name = (request.form.get("name") or "").strip()
+    valor = request.form.get("valor") or None
     return_url = (request.form.get("return_url") or "").strip()
     if not type_id or not name:
         flash("Tipo e nome são obrigatórios.", "warning")
