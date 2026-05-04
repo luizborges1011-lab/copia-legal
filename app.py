@@ -921,6 +921,8 @@ def fcn_config():
 def cliente_form(token):
     lead = leads_db.get_lead_by_client_token(token)
     if not lead:
+        lead = leads_db.get_lead(token)
+    if not lead:
         return "Processo não encontrado.", 404
     
     type_data = leads_db.get_lead_type(lead["lead_type_id"]) if "lead_type_id" in lead else None

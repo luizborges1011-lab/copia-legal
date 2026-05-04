@@ -578,7 +578,7 @@
             <h6 class="fw-bold mb-2 small text-uppercase text-muted"><i class="bi bi-link-45deg"></i> Link do Formulário para o Cliente</h6>
             <p class="small text-muted mb-2">Envie este link para o cliente preencher os dados. Quando ele salvar, o formulário será atualizado e você será notificado.</p>
             <div class="input-group input-group-sm">
-              <input type="text" class="form-control font-monospace text-primary bg-white" id="clientFormLink_{{ lead.id }}" readonly value="{{ request.host_url.rstrip('/') }}/cliente/form/{{ lead.client_token }}">
+              <input type="text" class="form-control font-monospace text-primary bg-white" id="clientFormLink_{{ lead.id }}" readonly value="{{ request.host_url.rstrip('/') }}/cliente/form/{{ lead.client_token or lead.id }}">
               <button class="btn btn-outline-secondary bg-white" onclick="copyClientFormLink('{{ lead.id }}')" title="Copiar link">
                 <i class="bi bi-clipboard"></i> Copiar
               </button>
