@@ -90,6 +90,7 @@ def init_db() -> None:
             "due_date_junta":        "TEXT",
             "due_date_nf":           "TEXT",
             "valor":                 "REAL",
+            "drive_link":            "TEXT",
         }
         for col, ctype in new_cols.items():
             if col not in cols:
@@ -829,7 +830,7 @@ def update_lead_fields(lead_id: str, fields: dict, actor: str | None = None) -> 
                 "op_baixo_risco", "op_alvara", "op_bombeiro",
                 "op_vigilancia", "op_conselho", "op_url_junta",
                 "op_link_assinatura_junta",
-                "op_organs_data", "parent_lead_id", "organ_type", "valor",
+                "op_organs_data", "parent_lead_id", "organ_type", "valor", "drive_link",
             }:
                 continue
             old = current[k]
