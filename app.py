@@ -482,6 +482,17 @@ def api_extrair_contrato():
         return jsonify({"erro": str(e)}), 500
 
 
+@app.route("/api/fichas/<int:fid>/conferir", methods=["POST"])
+def api_ficha_conferir(fid):
+    ficha = get_ficha(fid)
+    if not ficha:
+        return jsonify({"erro": "Ficha não encontrada"}), 404
+    dados = ficha["dados"]
+    dados["conferido"] = True
+    atualizar_ficha(fid, ficha["subtipo"], ficha["razao_social"], dados)
+    return jsonify({"ok": True})
+
+
 # ---------------------------------------------------------------------------
 # Banco de Cláusulas
 # ---------------------------------------------------------------------------

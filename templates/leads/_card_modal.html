@@ -207,6 +207,11 @@
               {% endfor %}
             </select>
           </div>
+        <!-- Valor do Serviço -->
+        <div class="col-6">
+          <label class="form-label small text-muted mb-1">Valor do Serviço (R$)</label>
+          <input type="number" step="0.01" min="0" class="form-control form-control-sm rounded-2 lead-field" data-field="valor" value="{{ lead.valor or '' }}" placeholder="Ex: 1500.00">
+        </div>
           <!-- Etapa -->
           <div class="col-12">
             <label class="form-label small text-muted mb-1">Etapa atual</label>
@@ -259,11 +264,6 @@
           </button>
         </li>
         {% endif %}
-        <li class="nav-item">
-          <a href="https://crm-contabil-production.up.railway.app/" target="_blank" rel="noopener noreferrer" class="nav-link py-1 px-2 small text-primary d-flex align-items-center gap-1">
-            <i class="bi bi-box-arrow-up-right"></i> CRM Contábil
-          </a>
-        </li>
       </ul>
 
       <!-- Tab content -->
@@ -521,6 +521,16 @@
                 </div>
               </div>
               <div class="d-flex gap-2 flex-wrap">
+            {% set conferido = ficha_data.dados.get('conferido', false) %}
+            {% if conferido %}
+            <span class="badge bg-success d-flex align-items-center" style="font-size: 12px; padding: 0 10px;">
+              <i class="bi bi-check-all me-1"></i> Formulário Conferido e Aprovado
+            </span>
+            {% else %}
+            <button class="btn btn-sm btn-outline-success" onclick="conferirFormulario('{{ ficha_data.id }}', '{{ lead.id }}')">
+              <i class="bi bi-check2-square"></i> Conferir Formulário
+            </button>
+            {% endif %}
                 {% if ficha_data.tipo == 'constituicao' %}
                 <a href="/constituicao/{{ ficha_data.id }}/editar" class="btn btn-sm btn-outline-secondary">
                   <i class="bi bi-pencil"></i> Editar
@@ -584,6 +594,24 @@
               </button>
             </div>
           </div>
+        <script>
+          if (typeof window.conferirFormulario === 'undefined') {
+            window.conferirFormulario = async function(fid, leadId) {
+              if (!confirm("Confirmar que o formulário foi conferido e aprovado?")) return;
+              try {
+                const res = await fetch(`/api/fichas/${fid}/conferir`, {method: 'POST'});
+                const data = await res.json();
+                if (data.ok) {
+                  if (window.LeadModal) window.LeadModal.open(leadId); // Atualiza a tela
+                } else {
+                  alert(data.erro || "Erro ao aprovar.");
+                }
+              } catch(e) {
+                alert("Erro de comunicação.");
+              }
+            }
+          }
+        </script>
           {% endif %}
         </div>
 
