@@ -435,6 +435,79 @@
       });
     }
 
+    // ---- Google Drive: criar pasta automática e editar link manualmente ----
+    const driveCreateBtn  = root.querySelector('#driveLinkCreateBtn');
+    const driveEditBtn    = root.querySelector('#driveLinkEditBtn');
+    const driveLinkView   = root.querySelector('#driveLinkView');
+    const driveLinkEdit   = root.querySelector('#driveLinkEdit');
+    const driveLinkInput  = root.querySelector('#driveLinkInput');
+    const driveLinkSave   = root.querySelector('#driveLinkSaveBtn');
+    const driveLinkCancel = root.querySelector('#driveLinkCancelBtn');
+
+    function _driveShowEdit(show) {
+      driveLinkView?.classList.toggle('d-none', show);
+      driveLinkEdit?.classList.toggle('d-none', !show);
+      if (show) driveLinkInput?.focus();
+    }
+
+    function _driveSetLink(url) {
+      if (!driveLinkView) return;
+      driveLinkView.innerHTML = url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="small text-primary d-inline-flex align-items-center gap-1" style="word-break:break-all;"><i class="bi bi-folder-fill text-warning flex-shrink-0"></i>${escapeHtml(url)}</a>`
+        : `<span class="small text-muted fst-italic">— clique no lápis para adicionar o link da pasta —</span>`;
+    }
+
+    if (driveEditBtn) driveEditBtn.addEventListener('click', () => _driveShowEdit(true));
+    if (driveLinkCancel) driveLinkCancel.addEventListener('click', () => _driveShowEdit(false));
+
+    if (driveLinkSave) {
+      driveLinkSave.addEventListener('click', async () => {
+        const val = driveLinkInput.value.trim();
+        driveLinkSave.disabled = true;
+        try {
+          const res = await fetch(`/api/leads/${leadId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ drive_link: val }),
+          });
+          if (res.ok) {
+            _driveSetLink(val);
+            _driveShowEdit(false);
+          } else {
+            _showToast('Erro ao salvar link.', 'danger');
+          }
+        } catch(e) {
+          _showToast('Erro de conexão.', 'danger');
+        } finally {
+          driveLinkSave.disabled = false;
+        }
+      });
+    }
+
+    if (driveCreateBtn) {
+      driveCreateBtn.addEventListener('click', async () => {
+        driveCreateBtn.disabled = true;
+        const orig = driveCreateBtn.innerHTML;
+        driveCreateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:10px;height:10px;"></span>Criando...';
+        try {
+          const res = await fetch(`/api/leads/${leadId}/create-drive-folder`, { method: 'POST' });
+          const data = await res.json();
+          if (res.ok && data.drive_link) {
+            _driveSetLink(data.drive_link);
+            driveCreateBtn.remove();
+          } else {
+            _showToast(data.error || 'Erro ao criar pasta no Drive.', 'danger');
+            driveCreateBtn.disabled = false;
+            driveCreateBtn.innerHTML = orig;
+          }
+        } catch(e) {
+          _showToast('Erro de comunicação com o servidor.', 'danger');
+          driveCreateBtn.disabled = false;
+          driveCreateBtn.innerHTML = orig;
+        }
+      });
+    }
+
     // ---- Excluir processo ----
     const delBtn = root.querySelector('.lead-delete-btn');
     if (delBtn) {

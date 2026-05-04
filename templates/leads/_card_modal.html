@@ -615,21 +615,21 @@
         {# ---- ARQUIVOS ---- #}
         <div class="tab-pane fade p-3" id="tab-files">
           <!-- Link do Google Drive -->
-          <div class="mb-4 p-3 border rounded-3 bg-light">
+          <div class="mb-4 p-3 border rounded-3 bg-light" id="driveLinkPanel">
             <div class="d-flex align-items-center justify-content-between mb-1">
               <span class="small fw-bold text-uppercase text-muted"><i class="bi bi-google text-success me-1"></i>Pasta no Google Drive</span>
               <div class="d-flex gap-2 align-items-center">
                 {% if not lead.drive_link %}
-                <button id="driveLinkCreateBtn_{{ lead.id }}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:11px;" onclick="createDriveFolder('{{ lead.id }}', this)">
+                <button id="driveLinkCreateBtn" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:11px;">
                   <i class="bi bi-folder-plus me-1"></i>Criar Pasta Automática
                 </button>
                 {% endif %}
-                <button id="driveLinkEditBtn_{{ lead.id }}" class="btn p-0 border-0 bg-transparent text-muted" style="font-size:11px;" title="Editar link manualmente">
+                <button id="driveLinkEditBtn" class="btn p-0 border-0 bg-transparent text-muted" style="font-size:11px;" title="Editar link manualmente">
                   <i class="bi bi-pencil-square"></i>
                 </button>
               </div>
             </div>
-            <div id="driveLinkView_{{ lead.id }}">
+            <div id="driveLinkView">
               {% if lead.drive_link %}
               <a href="{{ lead.drive_link }}" target="_blank" rel="noopener" class="small text-primary d-inline-flex align-items-center gap-1" style="word-break:break-all;">
                 <i class="bi bi-folder-fill text-warning flex-shrink-0"></i><span>{{ lead.drive_link }}</span>
@@ -638,56 +638,14 @@
               <span class="small text-muted fst-italic">— clique no lápis para adicionar o link da pasta —</span>
               {% endif %}
             </div>
-            <div id="driveLinkEdit_{{ lead.id }}" class="d-none mt-2">
-              <input type="url" id="driveLinkInput_{{ lead.id }}" class="form-control form-control-sm mb-2" value="{{ lead.drive_link or '' }}" placeholder="https://drive.google.com/drive/folders/...">
+            <div id="driveLinkEdit" class="d-none mt-2">
+              <input type="url" id="driveLinkInput" class="form-control form-control-sm mb-2" value="{{ lead.drive_link or '' }}" placeholder="https://drive.google.com/drive/folders/...">
               <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-success flex-grow-1 py-1" onclick="saveDriveLink('{{ lead.id }}', this)" style="font-size:12px;"><i class="bi bi-check2 me-1"></i>Salvar</button>
-                <button class="btn btn-sm btn-outline-secondary py-1" onclick="toggleDriveLinkEdit('{{ lead.id }}', false)" style="font-size:12px;">Cancelar</button>
+                <button id="driveLinkSaveBtn" class="btn btn-sm btn-success flex-grow-1 py-1" style="font-size:12px;"><i class="bi bi-check2 me-1"></i>Salvar</button>
+                <button id="driveLinkCancelBtn" class="btn btn-sm btn-outline-secondary py-1" style="font-size:12px;">Cancelar</button>
               </div>
             </div>
           </div>
-          <script>
-            if (typeof window.toggleDriveLinkEdit === 'undefined') {
-              window.toggleDriveLinkEdit = function(leadId, showEdit) {
-                document.getElementById('driveLinkView_' + leadId).classList.toggle('d-none', showEdit);
-                document.getElementById('driveLinkEdit_' + leadId).classList.toggle('d-none', !showEdit);
-              };
-              window.saveDriveLink = async function(leadId, btn) {
-                const input = document.getElementById('driveLinkInput_' + leadId);
-                const val = input.value.trim();
-                btn.disabled = true;
-                try {
-                  const res = await fetch(`/api/leads/${leadId}`, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ drive_link: val }) });
-                  if(res.ok) {
-                    const viewDiv = document.getElementById('driveLinkView_' + leadId);
-                    viewDiv.innerHTML = val ? `<a href="${val}" target="_blank" rel="noopener" class="small text-primary d-inline-flex align-items-center gap-1" style="word-break:break-all;"><i class="bi bi-folder-fill text-warning flex-shrink-0"></i>${val}</a>` : `<span class="small text-muted fst-italic">— clique no lápis para adicionar o link da pasta —</span>`;
-                    window.toggleDriveLinkEdit(leadId, false);
-                  } else { alert("Erro ao salvar link."); }
-                } catch(e) { alert("Erro de conexão."); } finally { btn.disabled = false; }
-              };
-              window.createDriveFolder = async function(leadId, btn) {
-                btn.disabled = true;
-                const originalHtml = btn.innerHTML;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 10px; height: 10px;"></span> Criando...';
-                try {
-                  const res = await fetch(`/api/leads/${leadId}/create-drive-folder`, { method: 'POST' });
-                  const data = await res.json();
-                  if (res.ok) {
-                    const viewDiv = document.getElementById('driveLinkView_' + leadId);
-                    viewDiv.innerHTML = `<a href="${data.drive_link}" target="_blank" rel="noopener" class="small text-primary d-inline-flex align-items-center gap-1" style="word-break:break-all;"><i class="bi bi-folder-fill text-warning flex-shrink-0"></i>${data.drive_link}</a>`;
-                    btn.remove();
-                  } else {
-                    alert(data.error || "Erro ao criar pasta no n8n.");
-                    btn.disabled = false; btn.innerHTML = originalHtml;
-                  }
-                } catch(e) {
-                  alert("Erro de comunicação com o servidor.");
-                  btn.disabled = false; btn.innerHTML = originalHtml;
-                }
-              };
-            }
-            document.getElementById('driveLinkEditBtn_{{ lead.id }}').onclick = () => window.toggleDriveLinkEdit('{{ lead.id }}', true);
-          </script>
 
           <div class="d-flex justify-content-between mb-2 align-items-center">
             <span class="small text-muted fw-bold text-uppercase">Arquivos anexados</span>
