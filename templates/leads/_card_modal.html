@@ -510,8 +510,6 @@
         {# ---- FORMULÁRIO ---- #}
         <div class="tab-pane fade p-3" id="tab-form">
           {% set tname = (type_data.name or '') | lower %}
-          {% set is_constitui = ('abertura' in tname or 'constitui' in tname or 'cnpj' in tname or 'nova' in tname or 'registro' in tname or 'abrir' in tname) %}
-          {% set is_altera = ('altera' in tname or 'modifica' in tname) %}
 
           {% if ficha_data %}
             <div class="p-3 border rounded-3 bg-light mb-3 d-flex align-items-center justify-content-between">
@@ -549,7 +547,7 @@
                 </a>
               </div>
             </div>
-          {% elif is_constitui %}
+          {% elif 'abertura' in tname or 'constitui' in tname %}
             <div class="text-center py-4 px-3 bg-light rounded-3 border">
               <i class="bi bi-file-earmark-plus fs-2 text-primary mb-2 d-block"></i>
               <h6 class="fw-bold mb-2">Iniciar Constituição</h6>
@@ -558,7 +556,7 @@
                 <i class="bi bi-plus-circle me-1"></i> Iniciar
               </a>
             </div>
-          {% elif is_altera %}
+          {% elif 'altera' in tname %}
             <div class="text-center py-4 px-3 bg-light rounded-3 border">
               <i class="bi bi-file-earmark-diff fs-2 text-warning mb-2 d-block"></i>
               <h6 class="fw-bold mb-2">Iniciar Alteração</h6>
@@ -568,54 +566,23 @@
               </a>
             </div>
           {% else %}
-            <div class="row g-2">
-              <div class="col-md-6">
-                <div class="text-center py-4 px-3 bg-light rounded-3 border h-100">
-                  <i class="bi bi-file-earmark-plus fs-2 text-primary mb-2 d-block"></i>
-                  <h6 class="fw-bold mb-2">Constituição</h6>
-                  <p class="text-muted small mb-3">Abertura de nova empresa.</p>
-                  <a href="/constituicao/nova?lead_id={{ lead.id }}" class="btn btn-outline-primary btn-sm px-4">Iniciar</a>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="text-center py-4 px-3 bg-light rounded-3 border h-100">
-                  <i class="bi bi-file-earmark-diff fs-2 text-warning mb-2 d-block"></i>
-                  <h6 class="fw-bold mb-2">Alteração</h6>
-                  <p class="text-muted small mb-3">Alteração contratual.</p>
-                  <a href="/alteracao/nova?lead_id={{ lead.id }}" class="btn btn-outline-warning btn-sm px-4">Iniciar</a>
-                </div>
-              </div>
+            <div class="text-center py-4 px-3 bg-light rounded-3 border">
+              <i class="bi bi-tools fs-2 text-secondary mb-2 d-block"></i>
+              <h6 class="fw-bold mb-2">Formulário em desenvolvimento</h6>
+              <p class="text-muted small">Este tipo de serviço ainda não possui formulário integrado.</p>
             </div>
           {% endif %}
 
+          {% if ficha_data %}
           <div class="mt-4 p-3 border rounded-3 bg-light">
             <h6 class="fw-bold mb-2 small text-uppercase text-muted"><i class="bi bi-link-45deg"></i> Link do Formulário para o Cliente</h6>
             <p class="small text-muted mb-2">Envie este link para o cliente preencher os dados. Quando ele salvar, o formulário será atualizado e você será notificado.</p>
-            
-            {% if ficha_data %}
-              {% set link_url = request.host_url.rstrip('/') ~ '/cliente/form/' ~ lead.client_token %}
-              <div class="input-group input-group-sm">
-                <input type="text" class="form-control font-monospace text-primary bg-white" id="clientFormLink_{{ lead.id }}" readonly value="{{ link_url }}">
-                <button class="btn btn-outline-secondary bg-white" onclick="copyClientFormLink('{{ lead.id }}')" title="Copiar link"><i class="bi bi-clipboard"></i> Copiar</button>
-              </div>
-            {% elif is_constitui %}
-              {% set link_url = request.host_url.rstrip('/') ~ '/cliente/form/' ~ lead.client_token ~ '?tipo=constituicao' %}
-              <div class="input-group input-group-sm">
-                <input type="text" class="form-control font-monospace text-primary bg-white" id="clientFormLink_{{ lead.id }}" readonly value="{{ link_url }}">
-                <button class="btn btn-outline-secondary bg-white" onclick="copyClientFormLink('{{ lead.id }}')" title="Copiar link"><i class="bi bi-clipboard"></i> Copiar</button>
-              </div>
-            {% elif is_altera %}
-              {% set link_url = request.host_url.rstrip('/') ~ '/cliente/form/' ~ lead.client_token ~ '?tipo=alteracao' %}
-              <div class="input-group input-group-sm">
-                <input type="text" class="form-control font-monospace text-primary bg-white" id="clientFormLink_{{ lead.id }}" readonly value="{{ link_url }}">
-                <button class="btn btn-outline-secondary bg-white" onclick="copyClientFormLink('{{ lead.id }}')" title="Copiar link"><i class="bi bi-clipboard"></i> Copiar</button>
-              </div>
-            {% else %}
-              <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-sm btn-outline-primary" onclick="copyCustomLink('{{ request.host_url.rstrip('/') }}/cliente/form/{{ lead.client_token }}?tipo=constituicao')"><i class="bi bi-clipboard"></i> Copiar Link Constituição</button>
-                <button class="btn btn-sm btn-outline-warning" onclick="copyCustomLink('{{ request.host_url.rstrip('/') }}/cliente/form/{{ lead.client_token }}?tipo=alteracao')"><i class="bi bi-clipboard"></i> Copiar Link Alteração</button>
-              </div>
-            {% endif %}
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control font-monospace text-primary bg-white" id="clientFormLink_{{ lead.id }}" readonly value="{{ request.host_url.rstrip('/') }}/cliente/form/{{ lead.client_token }}">
+              <button class="btn btn-outline-secondary bg-white" onclick="copyClientFormLink('{{ lead.id }}')" title="Copiar link">
+                <i class="bi bi-clipboard"></i> Copiar
+              </button>
+            </div>
           </div>
           <script>
             if (typeof window.copyClientFormLink === 'undefined') {
@@ -625,11 +592,9 @@
                 document.execCommand('copy');
                 alert('Link do formulário copiado com sucesso!');
               }
-              window.copyCustomLink = function(url) {
-                navigator.clipboard.writeText(url).then(() => alert('Link copiado com sucesso!'));
-              }
             }
           </script>
+          {% endif %}
         </div>
 
         {# ---- CHECKLIST ---- #}

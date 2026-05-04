@@ -934,22 +934,12 @@ def cliente_form(token):
     
     openai_ok = bool(os.environ.get("OPENAI_API_KEY"))
     
-    form_type = request.args.get("tipo")
-    if not form_type:
-        if ficha:
-            form_type = ficha.get("tipo")
-        else:
-            if any(k in tname for k in ["abertura", "constitui", "cnpj", "nova", "registro", "abrir"]):
-                form_type = "constituicao"
-            elif any(k in tname for k in ["altera", "modifica"]):
-                form_type = "alteracao"
-
-    if form_type == "constituicao":
+    if "abertura" in tname or "constitui" in tname:
         return render_template("form_constituicao.html", ficha=ficha["dados"] if ficha else None, ficha_id=ficha_id, lead_id=lead["id"], hide_nav=True, client_mode=True, token=token)
-    elif form_type == "alteracao":
+    elif "altera" in tname:
         return render_template("form_alteracao.html", ficha=ficha["dados"] if ficha else None, ficha_id=ficha_id, lead_id=lead["id"], hide_nav=True, client_mode=True, token=token, openai_ok=openai_ok, clausulas_banco=listar_clausulas(), modelos_clausulas=listar_modelos())
     else:
-        return "Formulário não disponível para este tipo de processo. Entre em contato com o escritório.", 400
+        return "Formulário não disponível para este tipo de processo.", 400
 
 
 # ---------------------------------------------------------------------------
