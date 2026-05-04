@@ -920,6 +920,50 @@ def change_status(lead_id):
 
 
 # ---------------------------------------------------------------------------
+# Webhook para criar leads vindo do CRM
+# ---------------------------------------------------------------------------
+
+@leads_api_bp.route("/webhook/receive", methods=["POST"])
+def webhook_receive_lead():
+    """Webhook para receber processos de sistemas externos (ex: CRM Contábil)"""
+    # Opcional: validação de segurança (basta criar a variável WEBHOOK_SECRET no Railway)
+    secret = os.environ.get("WEBHOOK_SECRET")
+    if secret:
+        token = request.headers.get("X-Webhook-Secret")
+        if token != secret:
+            return jsonify({"error": "Não autorizado. Header X-Webhook-Secret inválido."}), 401
+
+    data = request.get_json(silent=True) or {}
+    
+    # Aceita os formatos de chave mais comuns
+    nome = data.get("Razao Social") or data.get("razao_social") or data.get("nome")
+    if not nome:
+        return jsonify({"error": "O campo 'nome' (Razao Social) é obrigatório."}), 400
+
+    # Tenta achar a Etapa/Serviço (ex: Abertura de Empresa) pelo nome enviado
+    tipo_nome = data.get("tipo de serviço") or data.get("tipo_servico") or data.get("servico")
+    tipo_id = None
+    tipos = db.list_lead_types(active_only=True)
+    if tipo_nome:
+        for t in tipos:
+            if t["name"].lower() == str(tipo_nome).strip().lower():
+                tipo_id = t["id"]
+                break
+    if not tipo_id and tipos:
+        tipo_id = tipos[0]["id"]
+
+    try:
+        lead_id = db.create_lead(
+            lead_type_id=tipo_id,
+            name=str(nome).strip(),
+            valor=data.get("valor"),
+            description=data.get("descricao") or "Processo criado automaticamente via integração com o CRM.",
+        )
+        return jsonify({"ok": True, "lead_id": lead_id, "message": "Processo criado com sucesso."}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ---------------------------------------------------------------------------
 # Formulário (ficha)
 # ---------------------------------------------------------------------------
 
