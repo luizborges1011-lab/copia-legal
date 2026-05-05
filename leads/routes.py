@@ -2,10 +2,44 @@
 from __future__ import annotations
 
 import datetime
+import json
+import os
+import urllib.request
 
 from flask import render_template, request, redirect, url_for, flash, abort, jsonify, session
 
 from . import db, leads_bp
+
+_CRM_WEBHOOK_URL = "https://crm-contabil-production.up.railway.app/api/webhook/leads"
+_CRM_WEBHOOK_SECRET = os.environ.get("CRM_WEBHOOK_SECRET", "V0vR5MCQ9nkDqQNxY9ar12DEN8Ojospu7Sl4_1ivRGQ")
+
+# Tipos de serviço que devem ser notificados ao CRM na criação do lead
+_CRM_TRIGGER_KEYWORDS = ("abertura", "alteração")
+
+
+def _notify_crm(lead_name: str, tipo_nome: str, valor) -> None:
+    """Envia lead novo ao CRM Contábil se o tipo de serviço for elegível."""
+    tipo_lower = tipo_nome.lower()
+    if not any(kw in tipo_lower for kw in _CRM_TRIGGER_KEYWORDS):
+        return
+    try:
+        payload = json.dumps({
+            "razao_social": lead_name,
+            "tipo_servico": tipo_nome,
+            "valor": valor,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            _CRM_WEBHOOK_URL,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-Webhook-Secret": _CRM_WEBHOOK_SECRET,
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+    except Exception:
+        pass  # falha silenciosa — não deve impedir a criação do lead
 
 
 def _add_progress(leads_list: list[dict]) -> None:
@@ -244,6 +278,8 @@ def create():
     lead_type = db.get_lead_type(type_id)
     if lead_type and lead_type.get("code") in db.ORGAN_TYPE_CODES:
         db.apply_tag_to_lead(lead_id, "avulso")
+    if lead_type:
+        _notify_crm(name, lead_type.get("name", ""), valor)
     base = return_url if return_url else url_for("leads.index")
     return redirect(f"{base}?card={lead_id}")
 
