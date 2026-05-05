@@ -339,7 +339,10 @@ def get_ficha(fid):
     conn.close()
     if row:
         d = dict(row)
-        d["dados"] = json.loads(d["dados"])
+        try:
+            d["dados"] = json.loads(d["dados"])
+        except Exception:
+            d["dados"] = {}
         return d
     return None
 
@@ -358,7 +361,10 @@ def listar_fichas(tipo=None):
     result = []
     for r in rows:
         d = dict(r)
-        d["dados"] = json.loads(d["dados"])
+        try:
+            d["dados"] = json.loads(d["dados"])
+        except Exception:
+            d["dados"] = {}
         result.append(d)
     return result
 
