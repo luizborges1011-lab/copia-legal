@@ -376,6 +376,19 @@ def move_card(lead_id):
     db.update_lead_fields(lead_id, {"current_stage_id": stage_id}, actor=actor)
     # Auto-populate checklist items from stage templates
     db.apply_stage_checklist_templates(lead_id, stage_id)
+
+    # Auto-status: ao avançar saindo da primeira etapa → "Em andamento"
+    if (current_stage and target_stage
+            and target_stage.get("position", 0) > current_stage.get("position", 0)
+            and lead.get("status") == "Aberto"):
+        wf_id = lead.get("workflow_id")
+        if wf_id:
+            all_stages = db.list_stages(wf_id)
+            if all_stages:
+                first_stage_id = min(all_stages, key=lambda s: s.get("position", 0))["id"]
+                if current_stage["id"] == first_stage_id:
+                    db.update_lead_fields(lead_id, {"status": "Em andamento"}, actor=actor)
+
     lead = db.get_lead(lead_id)
 
     # Determine if junta organ modal should appear (leaving "Protocolo na Junta Comercial" forward)
