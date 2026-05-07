@@ -2,7 +2,7 @@
 <form class="card card-body mb-3 py-2" method="get" action="{{ '/leads/organ/' ~ organ_code if organ_code else '/leads' }}">
   <input type="hidden" name="view" value="{{ request.args.get('view','list') }}">
   <div class="row g-2 align-items-center small">
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label mb-0 text-muted">Buscar por nome</label>
       <input type="text" class="form-control form-control-sm" name="q" value="{{ filters.q or '' }}"
         placeholder="Nome do lead…">
@@ -35,7 +35,7 @@
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
+    <div class="col-md-1">
       <label class="form-label mb-0 text-muted">Tag</label>
       <select name="tag" class="form-select form-select-sm" onchange="this.form.submit()">
         <option value="">— todas —</option>
@@ -50,6 +50,15 @@
         <option value="">— todos —</option>
         {% for u in users or [] %}
         <option value="{{ u.name }}" {% if filters.responsible==u.name %}selected{% endif %}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label mb-0 text-muted">Escritório</label>
+      <select name="office" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">— todos —</option>
+        {% for o in offices or [] %}
+        <option value="{{ o.id }}" {% if filters.office==o.id %}selected{% endif %}>{{ o.name }}</option>
         {% endfor %}
       </select>
     </div>

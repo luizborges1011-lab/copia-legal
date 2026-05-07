@@ -65,6 +65,7 @@ def index():
         "status":      request.args.get("status") or None,
         "responsible": request.args.get("responsible") or None,
         "tag":         request.args.get("tag") or None,
+        "office":      request.args.get("office") or None,
         "q":           (request.args.get("q") or "").strip() or None,
     }
     leads = db.list_leads(filters)
@@ -73,6 +74,7 @@ def index():
     priorities = db.list_priorities()
     statuses = db.list_statuses()
     tags = db.list_tags()
+    offices = db.list_offices()
 
     # Para Kanban: renderizar apenas 1 workflow unificado absoluto
     selected_type = filters["type"] or None
@@ -114,6 +116,7 @@ def index():
         priorities=priorities,
         statuses=statuses,
         tags=tags,
+        offices=offices,
         filters=filters,
         selected_type=selected_type,
         workflows_data=workflows_data,
@@ -139,6 +142,7 @@ def organ_index(organ_code):
         "status":      request.args.get("status") or None,
         "responsible": request.args.get("responsible") or None,
         "tag":         request.args.get("tag") or None,
+        "office":      request.args.get("office") or None,
         "q":           (request.args.get("q") or "").strip() or None,
     }
     leads_list = db.list_leads(filters)
@@ -147,6 +151,7 @@ def organ_index(organ_code):
     statuses = db.list_statuses()
     tags = db.list_tags()
     types = db.list_lead_types(active_only=True)
+    offices = db.list_offices()
 
     workflows_data = []
     organ_workflows = db.list_workflows(organ_type["id"])
@@ -174,6 +179,7 @@ def organ_index(organ_code):
         priorities=priorities,
         statuses=statuses,
         tags=tags,
+        offices=offices,
         filters=filters,
         selected_type=organ_type["id"],
         workflows_data=workflows_data,
