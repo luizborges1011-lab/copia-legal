@@ -355,8 +355,14 @@ def move_card(lead_id):
         if (moving_forward and lead.get("organ_type")
                 and current_stage and "protocolo do pedido" in current_stage_name.lower()):
             organ_type = lead["organ_type"]
+            # Data is saved on the parent for child leads, on the lead itself for avulso leads
+            _data_source = lead
+            if lead.get("parent_lead_id"):
+                _parent = db.get_lead(lead["parent_lead_id"])
+                if _parent:
+                    _data_source = _parent
             try:
-                organs_raw = lead.get("op_organs_data") or "{}"
+                organs_raw = _data_source.get("op_organs_data") or "{}"
                 organs_data = json.loads(organs_raw)
             except Exception:
                 organs_data = {}
