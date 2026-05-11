@@ -290,6 +290,40 @@ def init_db() -> None:
         conn.execute(
             "DELETE FROM lead_types WHERE name='Pedido de Nota Fiscal' AND id NOT IN (SELECT DISTINCT lead_type_id FROM leads WHERE lead_type_id IS NOT NULL)"
         )
+    # Fix organ leads created with wrong (default) workflow — reassign to their type's own workflow
+    with db_cursor() as conn:
+        organ_codes = ("bombeiro", "vigilancia", "conselho")
+        for _code in organ_codes:
+            _type_row = conn.execute(
+                "SELECT id FROM lead_types WHERE code=?", (_code,)
+            ).fetchone()
+            if not _type_row:
+                continue
+            _type_id = _type_row[0]
+            _wf_row = conn.execute(
+                "SELECT id FROM lead_workflows WHERE lead_type_id=? ORDER BY rowid LIMIT 1",
+                (_type_id,)
+            ).fetchone()
+            if not _wf_row:
+                continue
+            _correct_wf_id = _wf_row[0]
+            # Find leads of this type that have the wrong workflow
+            _bad_leads = conn.execute(
+                "SELECT id FROM leads WHERE lead_type_id=? AND workflow_id != ?",
+                (_type_id, _correct_wf_id)
+            ).fetchall()
+            for _bad in _bad_leads:
+                _lid = _bad[0]
+                # Move to first stage of the correct organ workflow
+                _first_stage = conn.execute(
+                    "SELECT id FROM lead_stages WHERE workflow_id=? ORDER BY position LIMIT 1",
+                    (_correct_wf_id,)
+                ).fetchone()
+                _new_stage = _first_stage[0] if _first_stage else None
+                conn.execute(
+                    "UPDATE leads SET workflow_id=?, current_stage_id=? WHERE id=?",
+                    (_correct_wf_id, _new_stage, _lid)
+                )
 
 
 def _seed_defaults() -> None:
@@ -776,7 +810,8 @@ def create_lead(*, lead_type_id: str, name: str, priority: str = "Normal",
                 due_date: str | None = None, office_id: str | None = None,
                 valor: str | float | None = None) -> str:
     import datetime as _dt
-    wf = get_default_workflow(lead_type_id)
+    wf_list = list_workflows(lead_type_id)
+    wf = wf_list[0] if wf_list else get_default_workflow()
     if not wf:
         raise ValueError("Tipo de lead sem workflow configurado.")
     stages = list_stages(wf["id"])

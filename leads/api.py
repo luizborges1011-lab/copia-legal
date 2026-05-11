@@ -215,8 +215,13 @@ def modal_partial(lead_id):
 # Atualização de campos do lead (Operacional + Kanban DnD)
 # ---------------------------------------------------------------------------
 
-@leads_api_bp.route("/<lead_id>", methods=["PATCH"])
+@leads_api_bp.route("/<lead_id>", methods=["GET", "PATCH"])
 def patch_lead(lead_id):
+    if request.method == "GET":
+        lead = db.get_lead(lead_id)
+        if not lead:
+            abort(404)
+        return jsonify(lead)
     payload = request.get_json(silent=True) or {}
     actor = session.get("user_name") or "Sistema"
     try:

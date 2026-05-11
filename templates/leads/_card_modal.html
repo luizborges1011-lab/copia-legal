@@ -338,6 +338,9 @@
           {% if parent and parent.op_organs_data %}
             {% set _pod = parent.op_organs_data | fromjson %}
             {% set od = _pod.get(organ_key, {}) %}
+          {% elif lead.op_organs_data %}
+            {% set _pod = lead.op_organs_data | fromjson %}
+            {% set od = _pod.get(organ_key, {}) %}
           {% else %}
             {% set od = {} %}
           {% endif %}
@@ -376,10 +379,10 @@
             </div>
           </div>
 
-          <!-- Dados do Órgão (editável, salva no pai) -->
+          <!-- Dados do Órgão (editável, salva no pai ou no próprio lead se avulso) -->
           <div class="p-3 border rounded-3 mb-3"
                data-organ-card-key="{{ organ_key }}"
-               data-organ-parent-id="{{ parent.id if parent else '' }}">
+               data-organ-parent-id="{{ parent.id if parent else lead.id }}">
             <h6 class="fw-bold mb-3 small text-uppercase text-muted">
               <i class="bi bi-clipboard-data me-1"></i>Dados do Processo
             </h6>
