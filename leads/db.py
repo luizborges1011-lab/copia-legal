@@ -321,8 +321,8 @@ def init_db() -> None:
                 ).fetchone()
                 _new_stage = _first_stage[0] if _first_stage else None
                 conn.execute(
-                    "UPDATE leads SET workflow_id=?, current_stage_id=? WHERE id=?",
-                    (_correct_wf_id, _new_stage, _lid)
+                    "UPDATE leads SET workflow_id=?, current_stage_id=?, organ_type=? WHERE id=?",
+                    (_correct_wf_id, _new_stage, _code, _lid)
                 )
 
 
@@ -810,6 +810,14 @@ def create_lead(*, lead_type_id: str, name: str, priority: str = "Normal",
                 due_date: str | None = None, office_id: str | None = None,
                 valor: str | float | None = None) -> str:
     import datetime as _dt
+    # Set organ_type for leads created directly from an organ tab (avulso)
+    _organ_type: str | None = None
+    with db_cursor() as conn:
+        _lt_row = conn.execute(
+            "SELECT code FROM lead_types WHERE id=?", (lead_type_id,)
+        ).fetchone()
+        if _lt_row and _lt_row[0] in ORGAN_TYPE_CODES:
+            _organ_type = _lt_row[0]
     wf_list = list_workflows(lead_type_id)
     wf = wf_list[0] if wf_list else get_default_workflow()
     if not wf:
@@ -828,11 +836,11 @@ def create_lead(*, lead_type_id: str, name: str, priority: str = "Normal",
         conn.execute(
             """INSERT INTO leads (id,lead_type_id,workflow_id,current_stage_id,
                                   name,responsible_name,status,priority,description,
-                                  due_date,due_date_junta,due_date_nf,office_id,valor,created_at,stage_entered_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  due_date,due_date_junta,due_date_nf,office_id,organ_type,valor,created_at,stage_entered_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (lead_id, lead_type_id, wf["id"], first_stage, name,
              responsible_name, status, priority, description,
-             due_date, due_date_junta, due_date_nf, office_id, valor, created_now, created_now),
+             due_date, due_date_junta, due_date_nf, office_id, _organ_type, valor, created_now, created_now),
         )
         conn.execute(
             "INSERT INTO lead_forms (id,lead_id,data) VALUES (?,?,'{}')",
