@@ -400,6 +400,11 @@ def move_card(lead_id):
                 if current_stage["id"] == first_stage_id:
                     db.update_lead_fields(lead_id, {"status": "Em andamento"}, actor=actor)
 
+    # Auto-status: ao mover para a etapa "Concluído" → marcar status como Concluído
+    if (target_stage and target_stage.get("name") == "Concluído"
+            and lead.get("status") not in ("Concluído", "Cancelado", "Inativo Pedido Cliente")):
+        db.update_lead_fields(lead_id, {"status": "Concluído"}, actor=actor)
+
     lead = db.get_lead(lead_id)
 
     # Determine if junta organ modal should appear (leaving "Protocolo na Junta Comercial" forward)

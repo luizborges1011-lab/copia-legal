@@ -244,6 +244,9 @@ def init_db() -> None:
                         ("Liberação de Nota Fiscal",                 1),
                         ("Alvará Municipal (se necessário)",         25),
                     ]),
+                    ("CONCLUÍDOS", 1, [
+                        ("Concluído",                                1),
+                    ]),
                 ]
                 _stage_pos = 0
                 for _mp_pos, (_mp_name, _mp_sla, _stages) in enumerate(_mp_specs):
@@ -285,6 +288,52 @@ def init_db() -> None:
         ).fetchone()[0]
     if needs_recalc > 0:
         recalculate_all_deadlines()
+    # Migration: add CONCLUÍDOS macrophase + Concluído stage to any workflow missing it
+    with db_cursor() as conn:
+        _all_wf_ids = [r[0] for r in conn.execute("SELECT id FROM lead_workflows").fetchall()]
+    for _wf_id in _all_wf_ids:
+        with db_cursor() as conn:
+            _has_conclusao = conn.execute(
+                "SELECT COUNT(*) FROM lead_stages WHERE workflow_id=? AND name='Concluído'",
+                (_wf_id,),
+            ).fetchone()[0]
+            if not _has_conclusao:
+                _max_pos = conn.execute(
+                    "SELECT COALESCE(MAX(position),0)+1 FROM lead_stages WHERE workflow_id=?",
+                    (_wf_id,),
+                ).fetchone()[0]
+                _max_mp_pos = conn.execute(
+                    "SELECT COALESCE(MAX(position),0)+1 FROM lead_macrophases WHERE workflow_id=?",
+                    (_wf_id,),
+                ).fetchone()[0]
+                _mp_id = new_id()
+                conn.execute(
+                    "INSERT INTO lead_macrophases (id,workflow_id,name,position,sla_days) VALUES (?,?,?,?,?)",
+                    (_mp_id, _wf_id, "CONCLUÍDOS", _max_mp_pos, 1),
+                )
+                conn.execute(
+                    "INSERT INTO lead_stages (id,workflow_id,macrophase_id,name,position,sla_days) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (new_id(), _wf_id, _mp_id, "Concluído", _max_pos, 1),
+                )
+    # Migration: move existing "Concluído" status leads to the "Concluído" stage
+    with db_cursor() as conn:
+        _conclusao_leads = conn.execute(
+            "SELECT id, workflow_id, current_stage_id FROM leads "
+            "WHERE status='Concluído' AND workflow_id IS NOT NULL"
+        ).fetchall()
+    for _lead_id, _wf_id, _cur_stage_id in _conclusao_leads:
+        with db_cursor() as conn:
+            _conclusao_stage = conn.execute(
+                "SELECT id FROM lead_stages WHERE workflow_id=? AND name='Concluído' "
+                "ORDER BY position DESC LIMIT 1",
+                (_wf_id,),
+            ).fetchone()
+            if _conclusao_stage and _conclusao_stage[0] != _cur_stage_id:
+                conn.execute(
+                    "UPDATE leads SET current_stage_id=? WHERE id=?",
+                    (_conclusao_stage[0], _lead_id),
+                )
     # Remove incorrect "Pedido de Nota Fiscal" lead type (it was a stage, not a service type)
     with db_cursor() as conn:
         conn.execute(
@@ -416,6 +465,9 @@ def _seed_defaults() -> None:
                     ("Pedido de Nota Fiscal",                2),
                     ("Liberação de Nota Fiscal",             1),
                     ("Alvará Municipal (se necessário)",     25),
+                ]),
+                ("CONCLUÍDOS", 1, [
+                    ("Concluído",                            1),
                 ]),
             ]
             stage_pos = 0
@@ -1564,7 +1616,7 @@ def list_users() -> list[dict]:
 # Notifications
 # ---------------------------------------------------------------------------
 
-CLOSED_STATUS_NAMES = {"Cancelado", "Inativo Pedido Cliente"}
+CLOSED_STATUS_NAMES = {"Cancelado", "Inativo Pedido Cliente", "Concluído"}
 # Statuses that require a comment/justification (superset of CLOSED — includes pause statuses)
 COMMENT_REQUIRED_STATUS_NAMES = {"Cancelado", "Inativo Pedido Cliente",
                                   "Aguardando Cliente", "Aguardando Órgão Público"}

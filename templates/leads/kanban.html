@@ -60,8 +60,13 @@
       <div class="kanban-cols">
         {% for st in wstages_by_macro.get(mp.id, []) %}
         {% set stage_leads = wleads|selectattr('current_stage_id','equalto',st.id)|list %}
-        {% set hidden_leads = stage_leads|selectattr('status','equalto','Cancelado')|list + stage_leads|selectattr('status','equalto','Inativo Pedido Cliente')|list + stage_leads|selectattr('status','equalto','Concluído')|list %}
-        {% set visible_leads = stage_leads|rejectattr('status','equalto','Cancelado')|rejectattr('status','equalto','Inativo Pedido Cliente')|rejectattr('status','equalto','Concluído')|list %}
+        {% if st.name == 'Concluído' %}
+          {% set hidden_leads = stage_leads|selectattr('status','equalto','Cancelado')|list + stage_leads|selectattr('status','equalto','Inativo Pedido Cliente')|list %}
+          {% set visible_leads = stage_leads|rejectattr('status','equalto','Cancelado')|rejectattr('status','equalto','Inativo Pedido Cliente')|list %}
+        {% else %}
+          {% set hidden_leads = stage_leads|selectattr('status','equalto','Cancelado')|list + stage_leads|selectattr('status','equalto','Inativo Pedido Cliente')|list + stage_leads|selectattr('status','equalto','Concluído')|list %}
+          {% set visible_leads = stage_leads|rejectattr('status','equalto','Cancelado')|rejectattr('status','equalto','Inativo Pedido Cliente')|rejectattr('status','equalto','Concluído')|list %}
+        {% endif %}
         <div class="kanban-col" data-stage-id="{{ st.id }}">
           <div class="kanban-col-header">
             <div class="d-flex justify-content-between align-items-center">
@@ -77,7 +82,7 @@
           </div>
           <div class="kanban-col-body" data-stage-id="{{ st.id }}" data-stage-name="{{ st.name }}">
             {% for l in stage_leads %}
-            {% set is_closed = l.status in ('Cancelado', 'Inativo Pedido Cliente', 'Concluído') %}
+            {% set is_closed = l.status in ('Cancelado', 'Inativo Pedido Cliente') or (l.status == 'Concluído' and st.name != 'Concluído') %}
             <div class="kanban-closed-wrapper {% if is_closed %}kanban-card-closed d-none{% endif %}" data-lead-id="{{ l.id }}">
               {% include "leads/_card.html" %}
             </div>
@@ -99,7 +104,11 @@
       <div class="kanban-cols">
         {% for st in orphan_stages %}
         {% set stage_leads = wleads|selectattr('current_stage_id','equalto',st.id)|list %}
-        {% set hidden_leads = stage_leads|selectattr('status','equalto','Cancelado')|list + stage_leads|selectattr('status','equalto','Inativo Pedido Cliente')|list + stage_leads|selectattr('status','equalto','Concluído')|list %}
+        {% if st.name == 'Concluído' %}
+          {% set hidden_leads = stage_leads|selectattr('status','equalto','Cancelado')|list + stage_leads|selectattr('status','equalto','Inativo Pedido Cliente')|list %}
+        {% else %}
+          {% set hidden_leads = stage_leads|selectattr('status','equalto','Cancelado')|list + stage_leads|selectattr('status','equalto','Inativo Pedido Cliente')|list + stage_leads|selectattr('status','equalto','Concluído')|list %}
+        {% endif %}
         <div class="kanban-col" data-stage-id="{{ st.id }}">
           <div class="kanban-col-header">
             <div class="d-flex justify-content-between align-items-center">
@@ -111,7 +120,7 @@
           </div>
           <div class="kanban-col-body" data-stage-id="{{ st.id }}" data-stage-name="{{ st.name }}">
             {% for l in stage_leads %}
-            {% set is_closed = l.status in ('Cancelado', 'Inativo Pedido Cliente', 'Concluído') %}
+            {% set is_closed = l.status in ('Cancelado', 'Inativo Pedido Cliente') or (l.status == 'Concluído' and st.name != 'Concluído') %}
             <div class="kanban-closed-wrapper {% if is_closed %}kanban-card-closed d-none{% endif %}" data-lead-id="{{ l.id }}">
               {% include "leads/_card.html" %}
             </div>
