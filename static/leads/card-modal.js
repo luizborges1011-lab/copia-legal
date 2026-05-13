@@ -1085,18 +1085,41 @@
     const genBtn    = root.querySelector('#generateApprovalBtn');
     if (!genBtn) return;
 
+    // Build optional file attachment UI above the button
+    const fileWrap = document.createElement('div');
+    fileWrap.className = 'mb-2';
+    fileWrap.innerHTML = `
+      <label class="form-label small text-muted mb-1" style="cursor:pointer;">
+        <i class="bi bi-paperclip me-1"></i>Anexar documento (opcional)
+        <input type="file" id="_approvalFileInput" class="d-none"
+               accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">
+      </label>
+      <div id="_approvalFileName" class="small text-muted fst-italic"></div>`;
+    genBtn.parentNode.insertBefore(fileWrap, genBtn);
+    const fileInput = fileWrap.querySelector('#_approvalFileInput');
+    const fileNameEl = fileWrap.querySelector('#_approvalFileName');
+    fileInput.addEventListener('change', () => {
+      fileNameEl.textContent = fileInput.files[0] ? fileInput.files[0].name : '';
+    });
+
     genBtn.addEventListener('click', async () => {
       genBtn.disabled = true;
       genBtn.textContent = 'Gerando...';
       try {
-        const res = await fetch(`/api/leads/${leadId}/generate-approval`, { method: 'POST' });
+        const fd = new FormData();
+        if (fileInput.files[0]) fd.append('document', fileInput.files[0]);
+        const res = await fetch(`/api/leads/${leadId}/generate-approval`, { method: 'POST', body: fd });
         const data = await res.json();
         if (data.ok) {
+          const docBadge = data.has_document
+            ? `<div class="mt-1 small text-success"><i class="bi bi-file-earmark-check me-1"></i>Documento anexado</div>`
+            : '';
           statusDiv.innerHTML = `
             <div class="alert alert-info py-2 px-3 mb-2 small">
               <strong>Link gerado!</strong><br>
               <a href="${escapeHtml(data.link)}" target="_blank" class="d-block text-truncate">${escapeHtml(data.link)}</a>
               <div class="mt-1">Código de acesso: <strong>${escapeHtml(data.access_code)}</strong></div>
+              ${docBadge}
             </div>
             <div class="d-flex gap-2">
               <button class="btn btn-sm btn-outline-primary" id="_copyApprovalLink">

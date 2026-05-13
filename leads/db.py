@@ -375,6 +375,15 @@ def init_db() -> None:
                 )
 
 
+    # Migration: add document_key / document_mime to lead_approvals (optional attachment)
+    with db_cursor() as conn:
+        _approvals_cols = [r[1] for r in conn.execute("PRAGMA table_info(lead_approvals)").fetchall()]
+        if "document_key" not in _approvals_cols:
+            conn.execute("ALTER TABLE lead_approvals ADD COLUMN document_key TEXT")
+        if "document_mime" not in _approvals_cols:
+            conn.execute("ALTER TABLE lead_approvals ADD COLUMN document_mime TEXT")
+
+
 def _seed_defaults() -> None:
     """Cria prioridades, status e um tipo de lead default se vazio."""
     with db_cursor() as conn:
@@ -1132,17 +1141,30 @@ def delete_checklist_item(item_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def create_approval(lead_id: str, approval_type: str, token: str | None = None,
-                    access_code: str = '1234') -> str:
+                    access_code: str = '1234',
+                    document_key: str | None = None,
+                    document_mime: str | None = None) -> str:
     aid = new_id()
     if token is None:
         token = str(uuid.uuid4()).replace('-', '')
     with db_cursor() as conn:
         conn.execute(
-            """INSERT INTO lead_approvals (id, lead_id, approval_type, token, access_code, status, created_at)
-               VALUES (?, ?, ?, ?, ?, 'pending', ?)""",
-            (aid, lead_id, approval_type, token, access_code, now_iso()),
+            """INSERT INTO lead_approvals
+               (id, lead_id, approval_type, token, access_code, status, created_at, document_key, document_mime)
+               VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
+            (aid, lead_id, approval_type, token, access_code, now_iso(), document_key, document_mime),
         )
     return aid
+
+
+def update_approval_document(approval_id: str,
+                              document_key: str | None,
+                              document_mime: str | None) -> None:
+    with db_cursor() as conn:
+        conn.execute(
+            "UPDATE lead_approvals SET document_key=?, document_mime=? WHERE id=?",
+            (document_key, document_mime, approval_id),
+        )
 
 
 def get_approval(approval_id: str) -> Optional[dict]:

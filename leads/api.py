@@ -428,26 +428,54 @@ def move_card(lead_id):
 
 @leads_api_bp.route("/<lead_id>/generate-approval", methods=["POST"])
 def generate_approval(lead_id):
-    """Creates or returns existing pending approval for a lead."""
+    """Creates or returns existing pending approval for a lead.
+    Accepts multipart/form-data; optional 'document' file field attaches a custom document.
+    If a pending approval already exists, reuses the same token and updates the document.
+    """
     lead = db.get_lead(lead_id)
     if not lead:
         abort(404)
+
+    # Handle optional file attachment
+    uploaded_file = request.files.get("document")
+    new_doc_key = None
+    new_doc_mime = None
+    if uploaded_file and uploaded_file.filename:
+        from leads.storage import get_storage as _get_storage
+        import os as _os
+        _storage = _get_storage()
+        fname = uploaded_file.filename or "documento"
+        new_doc_mime = uploaded_file.mimetype or "application/octet-stream"
+        new_doc_key, _ = _storage.save(lead_id, fname, uploaded_file.stream, new_doc_mime)
 
     # Check for existing pending approval
     existing = db.get_lead_approval(lead_id, "client_approval")
     if existing and existing.get("status") == "pending":
         token = existing["token"]
         access_code = existing.get("access_code", "1234")
+        # Update document if a new one was uploaded (delete old if present)
+        if uploaded_file and uploaded_file.filename:
+            old_key = existing.get("document_key")
+            if old_key:
+                try:
+                    from leads.storage import get_storage as _get_storage2
+                    _get_storage2().delete(old_key)
+                except Exception:
+                    pass
+            db.update_approval_document(existing["id"], new_doc_key, new_doc_mime)
     else:
         # Create new approval
         import uuid as _uuid
         token = _uuid.uuid4().hex
-        db.create_approval(lead_id, "client_approval", token=token, access_code="1234")
+        db.create_approval(lead_id, "client_approval", token=token, access_code="1234",
+                           document_key=new_doc_key, document_mime=new_doc_mime)
         access_code = "1234"
 
     base_url = request.host_url.rstrip("/")
     link = f"{base_url}/leads/aprovacao/{token}"
-    return jsonify({"ok": True, "token": token, "link": link, "access_code": access_code})
+    has_document = bool(new_doc_key or (existing and existing.get("document_key")))
+    return jsonify({"ok": True, "token": token, "link": link, "access_code": access_code,
+                    "has_document": has_document})
 
 
 @leads_api_bp.route("/approval/<token>/resolve", methods=["POST"])
@@ -741,10 +769,29 @@ body{{background:#d0d0d0;padding:20px;font-family:Arial,Helvetica,sans-serif;fon
 
 @leads_api_bp.route("/approval/<token>/documento")
 def approval_documento(token):
-    """Public endpoint — view the contract/alteration document for an approval link."""
+    """Public endpoint — view the contract/alteration document for an approval link.
+    Serves the custom attached document if one exists, otherwise generates the ficha docx.
+    """
     approval = db.get_approval_by_token(token)
     if not approval:
         abort(404)
+
+    # Serve uploaded document if present
+    doc_key = approval.get("document_key")
+    if doc_key:
+        from leads.storage import get_storage as _get_storage
+        try:
+            stream = _get_storage().open_stream(doc_key)
+        except Exception:
+            abort(404)
+        mime = approval.get("document_mime") or "application/octet-stream"
+        from flask import Response, stream_with_context
+        resp = Response(stream_with_context(stream), mimetype=mime)
+        resp.headers["Content-Disposition"] = "inline"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        return resp
+
+    # Fallback: generate docx from ficha
     lead = db.get_lead(approval["lead_id"])
     if not lead or not lead.get("ficha_id"):
         abort(404)
