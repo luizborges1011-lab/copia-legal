@@ -1041,7 +1041,7 @@ def webhook_receive_lead():
 
 
 # ---------------------------------------------------------------------------
-# Integração Google Drive via n8n
+# Integração Google Drive (direto via API, sem n8n)
 # ---------------------------------------------------------------------------
 @leads_api_bp.route("/<lead_id>/create-drive-folder", methods=["POST"])
 def create_drive_folder(lead_id):
@@ -1049,39 +1049,15 @@ def create_drive_folder(lead_id):
     if not lead:
         abort(404)
 
-    webhook_url = os.environ.get("N8N_DRIVE_WEBHOOK_URL", "https://williammadruga.app.n8n.cloud/webhook/drive-legal")
-
     try:
-        import urllib.request
-        import json as _json
-        payload = _json.dumps({
-            "lead_id": lead["id"],
-            "lead_name": lead["name"],
-        }).encode("utf-8")
-
-        req = urllib.request.Request(webhook_url, data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read()
-            resultado = _json.loads(raw)
-
-        # suporta resposta como lista ou objeto
-        if isinstance(resultado, list):
-            resultado = resultado[0] if resultado else {}
-
-        drive_link = (
-            resultado.get("webViewLink")
-            or resultado.get("link")
-            or resultado.get("url")
-            or resultado.get("folderLink")
-            or resultado.get("drive_link")
-        )
-        if not drive_link:
-            return jsonify({"error": f"O n8n não retornou o link da pasta. Resposta: {resultado}"}), 400
-
+        from leads.google_drive import create_lead_folder
+        drive_link = create_lead_folder(lead["name"])
         db.update_lead_fields(lead_id, {"drive_link": drive_link}, actor=session.get("user_name") or "Sistema")
         return jsonify({"ok": True, "drive_link": drive_link})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
-        return jsonify({"error": f"Erro de comunicação com o n8n: {str(e)}"}), 500
+        return jsonify({"error": f"Erro ao criar pasta no Drive: {str(e)}"}), 500
 
 # ---------------------------------------------------------------------------
 # Formulário (ficha)
