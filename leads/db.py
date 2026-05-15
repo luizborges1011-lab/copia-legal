@@ -798,8 +798,11 @@ def list_leads(filters: dict | None = None) -> list[dict]:
     ]:
         v = filters.get(key)
         if v:
-            where.append(f"{col} = ?")
-            params.append(v)
+            if key == "office" and v == "__none__":
+                where.append("l.office_id IS NULL")
+            else:
+                where.append(f"{col} = ?")
+                params.append(v)
     if filters.get("tag"):
         where.append("l.id IN (SELECT lead_id FROM lead_tag_assignments WHERE tag_id = ?)")
         params.append(filters["tag"])
@@ -1929,6 +1932,32 @@ def get_analytics_data(month: int, year: int, responsavel: Optional[str] = None)
             resp_args
         )]
 
+        by_origin = [dict(r) for r in q(
+            f"""SELECT
+                   CASE WHEN (l.organ_type IS NULL OR l.organ_type = '') THEN 'Quadro de Processos'
+                        ELSE 'Autônomo (Licenças e Alvarás)' END AS origin,
+                   COUNT(*) as cnt
+               FROM leads l
+               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
+               GROUP BY origin ORDER BY cnt DESC""",
+            resp_args
+        )]
+
+        origem_list = [dict(r) for r in q(
+            f"""SELECT l.id, l.name, l.responsible_name, l.priority,
+                       lt.name as type_name, lt.color as type_color,
+                       s.name as stage_name, mp.name as macrophase_name,
+                       CASE WHEN (l.organ_type IS NULL OR l.organ_type = '') THEN 'quadro'
+                            ELSE 'autonomo' END AS origin
+               FROM leads l
+               LEFT JOIN lead_types lt ON lt.id = l.lead_type_id
+               LEFT JOIN lead_stages s ON s.id = l.current_stage_id
+               LEFT JOIN lead_macrophases mp ON mp.id = s.macrophase_id
+               WHERE l.status NOT IN ('Concluído','Cancelado','Inativo Pedido Cliente') AND {ROOT}
+               ORDER BY l.created_at DESC""",
+            resp_args
+        )]
+
         by_macrophase = [dict(r) for r in q(
             f"""SELECT COALESCE(mp.name,'Sem etapa') as name, COUNT(*) as cnt
                FROM leads l
@@ -2009,6 +2038,8 @@ def get_analytics_data(month: int, year: int, responsavel: Optional[str] = None)
             "by_type": by_type,
             "by_type_active": by_type_active,
             "by_office": by_office,
+            "by_origin": by_origin,
+            "origem_list": origem_list,
             "by_macrophase": by_macrophase,
             "by_responsible": by_responsible,
             "trend": trend,

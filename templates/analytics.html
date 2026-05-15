@@ -187,13 +187,68 @@
   </div>
 </div>
 
-<!-- ===== Distribuição por Escritório ===== -->
+<!-- ===== Distribuição por Escritório + Origem dos Processos ===== -->
 <div class="row g-3 mb-3">
   <div class="col-md-4">
     <div class="chart-box">
       <div class="fw-semibold small mb-3">Distribuição por Escritório</div>
       <div class="chart-canvas-wrap" style="height:200px;"><canvas id="chartOffice"></canvas></div>
       <div id="legendOffice" class="mt-2"></div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="chart-box h-100 d-flex flex-column">
+      <!-- Header -->
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div class="fw-semibold small"><i class="bi bi-diagram-2 me-1 text-primary"></i>Origem dos Processos</div>
+        <div class="d-flex gap-1">
+          <button class="tab-btn active" id="tabOrigem-todos"   onclick="filterOrigem('todos',this)">Todos</button>
+          <button class="tab-btn"        id="tabOrigem-quadro"  onclick="filterOrigem('quadro',this)">Quadro</button>
+          <button class="tab-btn"        id="tabOrigem-autonomo" onclick="filterOrigem('autonomo',this)">Autônomos</button>
+        </div>
+      </div>
+      <!-- KPIs -->
+      {% set cnt_quadro   = data.by_origin | selectattr('origin','equalto','Quadro de Processos')          | map(attribute='cnt') | list | first | default(0) %}
+      {% set cnt_autonomo = data.by_origin | selectattr('origin','equalto','Autônomo (Licenças e Alvarás)') | map(attribute='cnt') | list | first | default(0) %}
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <div style="background:#eff6ff;border-radius:10px;padding:.7rem 1rem;">
+            <div style="font-size:1.7rem;font-weight:700;color:#2456a4;line-height:1;">{{ cnt_quadro }}</div>
+            <div style="font-size:.74rem;color:#64748b;margin-top:.15rem;"><i class="bi bi-kanban me-1"></i>Quadro de Processos</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div style="background:#f0fdf4;border-radius:10px;padding:.7rem 1rem;">
+            <div style="font-size:1.7rem;font-weight:700;color:#059669;line-height:1;">{{ cnt_autonomo }}</div>
+            <div style="font-size:.74rem;color:#64748b;margin-top:.15rem;"><i class="bi bi-file-earmark-text me-1"></i>Autônomos (Lic. e Alvarás)</div>
+          </div>
+        </div>
+      </div>
+      <!-- Lista interativa -->
+      {% if data.origem_list %}
+      <div id="origemList" style="flex:1;overflow-y:auto;max-height:260px;display:flex;flex-direction:column;gap:3px;">
+        {% for l in data.origem_list %}
+        <a href="/leads/{{ l.id }}"
+           class="text-decoration-none text-dark origem-item"
+           data-origin="{{ l.origin }}"
+           style="display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;border:1px solid #f1f5f9;background:#fafafa;transition:background .12s;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ l.type_color or '#94a3b8' }};flex-shrink:0;"></span>
+          <span style="flex:1;font-size:.81rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ l.name }}">{{ l.name }}</span>
+          {% if l.stage_name %}
+          <span style="font-size:.7rem;background:#e0e7ff;color:#3730a3;padding:2px 7px;border-radius:12px;white-space:nowrap;flex-shrink:0;">{{ l.stage_name }}</span>
+          {% endif %}
+          {% if l.responsible_name %}
+          <span style="font-size:.7rem;color:#64748b;white-space:nowrap;flex-shrink:0;"><i class="bi bi-person"></i> {{ l.responsible_name }}</span>
+          {% endif %}
+          {% if l.origin == 'autonomo' %}
+          <span style="font-size:.66rem;background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:10px;flex-shrink:0;">Aut.</span>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center text-muted small py-3">Nenhum processo ativo.</div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -642,6 +697,20 @@ if (byOffice.length > 0) {
 } else {
   document.getElementById('chartOffice').parentElement.innerHTML += '<p class="text-center text-muted small">Sem dados.</p>';
 }
+
+// ---------- Origem dos Processos (filter tabs) ----------
+function filterOrigem(origin, btn) {
+  document.querySelectorAll('#tabOrigem-todos,#tabOrigem-quadro,#tabOrigem-autonomo').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#origemList .origem-item').forEach(item => {
+    item.style.display = (origin === 'todos' || item.dataset.origin === origin) ? 'flex' : 'none';
+  });
+}
+// hover highlight
+document.querySelectorAll('#origemList .origem-item').forEach(item => {
+  item.addEventListener('mouseenter', () => { item.style.background = '#f0f6ff'; item.style.borderColor = '#bfdbfe'; });
+  item.addEventListener('mouseleave', () => { item.style.background = '#fafafa'; item.style.borderColor = '#f1f5f9'; });
+});
 
 // ---------- Por Responsável (bar) ----------
 if (byResp.length > 0) {

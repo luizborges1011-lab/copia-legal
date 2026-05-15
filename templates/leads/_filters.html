@@ -57,6 +57,7 @@
       <label class="form-label mb-0 text-muted">Escritório</label>
       <select name="office" class="form-select form-select-sm" onchange="this.form.submit()">
         <option value="">— todos —</option>
+        <option value="__none__" {% if filters.office=='__none__' %}selected{% endif %}>Sem escritório</option>
         {% for o in offices or [] %}
         <option value="{{ o.id }}" {% if filters.office==o.id %}selected{% endif %}>{{ o.name }}</option>
         {% endfor %}
